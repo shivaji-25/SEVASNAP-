@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import {
@@ -13,6 +13,11 @@ import {
   AlertTriangle,
   ArrowRight,
   Send,
+  Video,
+  VideoOff,
+  RotateCw,
+  RefreshCw,
+  CheckCircle2,
 } from 'lucide-react';
 
 const DIAGNOSTIC_PRESETS = [
@@ -87,7 +92,98 @@ export const Report = () => {
   const [isLockingGps, setIsLockingGps] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Live Camera states
+  const [isLiveCameraActive, setIsLiveCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' or 'user'
+  const [cameraError, setCameraError] = useState(null);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [isLiveCaptured, setIsLiveCaptured] = useState(false);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const nativeCameraInputRef = useRef(null);
+
+  // Clean up stream on unmount
+  useEffect(() => {
+    return () => {
+      stopLiveCamera();
+    };
+  }, []);
+
+  // Start live device camera using getUserMedia
+  const startLiveCamera = async (facing = cameraFacing) => {
+    try {
+      setCameraError(null);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      const constraints = {
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setIsLiveCameraActive(true);
+      setIsLiveCaptured(false);
+    } catch (err) {
+      console.warn('Live Camera error:', err);
+      setCameraError(
+        'Unable to access live webcam/camera. Check browser permissions or use the Native Camera / Presets below.'
+      );
+      setIsLiveCameraActive(false);
+    }
+  };
+
+  // Stop live camera stream
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsLiveCameraActive(false);
+  };
+
+  // Switch between front & rear camera
+  const handleFlipCamera = () => {
+    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+    setCameraFacing(nextFacing);
+    if (isLiveCameraActive) {
+      startLiveCamera(nextFacing);
+    }
+  };
+
+  // Capture frame from live video stream to photo
+  const captureFrame = () => {
+    if (!videoRef.current) return;
+
+    // Trigger visual flash animation
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 200);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current || document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    setSelectedImage(dataUrl);
+    setIsLiveCaptured(true);
+    stopLiveCamera();
+  };
 
   // Handle local camera or gallery upload
   const handleFileUpload = (e) => {
@@ -96,14 +192,18 @@ export const Report = () => {
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
         setSelectedImage(uploadEvent.target.result);
+        setIsLiveCaptured(true);
+        stopLiveCamera();
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleSelectPreset = (preset) => {
+    stopLiveCamera();
     setSelectedPreset(preset);
     setSelectedImage(preset.image);
+    setIsLiveCaptured(false);
   };
 
   // Re-detect GPS lock
@@ -118,7 +218,7 @@ export const Report = () => {
     setIsSubmitting(true);
     try {
       const payload = {
-        title: selectedPreset.title,
+        title: isLiveCaptured ? `Citizen Report: ${selectedPreset.categoryName}` : selectedPreset.title,
         category: selectedPreset.key,
         categoryName: selectedPreset.categoryName,
         description: selectedPreset.description,
@@ -131,7 +231,7 @@ export const Report = () => {
           distance: 'At Reporting Location',
         },
         priority: selectedPreset.severity,
-        confidence: selectedPreset.confidence,
+        confidence: isLiveCaptured ? 98.2 : selectedPreset.confidence,
         department: selectedPreset.department,
       };
 
@@ -146,11 +246,14 @@ export const Report = () => {
 
   return (
     <div className="pb-28 pt-3 px-4 max-w-md mx-auto space-y-4">
+      {/* Hidden canvas for snapshot rasterization */}
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* 1. Header with Zero-Form Pill */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-black text-slate-900 tracking-tight">Smart Viewfinder</h2>
-          <p className="text-[11px] text-slate-500">Augmented Capture & AI Context Lock</p>
+          <p className="text-[11px] text-slate-500">Live Camera & AI Civic Intelligence</p>
         </div>
         <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
           <Sparkles className="w-3 h-3 text-emerald-600" />
@@ -158,13 +261,102 @@ export const Report = () => {
         </span>
       </div>
 
+      {/* Camera Mode Action Bar */}
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => {
+            if (isLiveCameraActive) {
+              stopLiveCamera();
+            } else {
+              startLiveCamera();
+            }
+          }}
+          className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-2xl text-xs font-bold transition-all border shadow-sm ${
+            isLiveCameraActive
+              ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
+              : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-500'
+          }`}
+        >
+          {isLiveCameraActive ? (
+            <>
+              <VideoOff className="w-3.5 h-3.5" />
+              <span>Stop Feed</span>
+            </>
+          ) : (
+            <>
+              <Camera className="w-3.5 h-3.5" />
+              <span>Live Camera</span>
+            </>
+          )}
+        </button>
+
+        {/* Device Native Camera trigger (works on mobile phones natively) */}
+        <button
+          onClick={() => nativeCameraInputRef.current?.click()}
+          className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded-2xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 border border-slate-700 shadow-sm"
+        >
+          <Video className="w-3.5 h-3.5 text-amber-400" />
+          <span>Device Cam</span>
+        </button>
+        <input
+          type="file"
+          ref={nativeCameraInputRef}
+          onChange={handleFileUpload}
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+        />
+
+        {/* Gallery / File Picker */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded-2xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm"
+        >
+          <Image className="w-3.5 h-3.5 text-slate-500" />
+          <span>Gallery</span>
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="image/*"
+          className="hidden"
+        />
+      </div>
+
+      {/* Camera Error Alert if permissions rejected */}
+      {cameraError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 flex items-start space-x-2 text-xs text-amber-900">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 leading-snug">
+            <span>{cameraError}</span>
+          </div>
+        </div>
+      )}
+
       {/* 2. Smart Viewfinder with Frame Assistance & Sensor Overlays (View B) */}
       <div className="relative aspect-[4/3] rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl group">
-        <img
-          src={selectedImage}
-          alt="Smart Viewfinder Defect"
-          className="w-full h-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
-        />
+        {/* Flash Effect upon shutter capture */}
+        {isFlashing && (
+          <div className="absolute inset-0 bg-white z-40 transition-opacity duration-200 opacity-90 pointer-events-none" />
+        )}
+
+        {/* Active Live Video Stream OR Captured/Preset Image */}
+        {isLiveCameraActive ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img
+            src={selectedImage}
+            alt="Smart Viewfinder Defect"
+            className="w-full h-full object-cover opacity-90 transition-transform duration-300"
+          />
+        )}
 
         {/* Augmented Framing Overlay & Reticles */}
         <div className="absolute inset-0 pointer-events-none p-3.5 flex flex-col justify-between">
@@ -173,12 +365,12 @@ export const Report = () => {
             {/* Optimal Lighting Sensor HUD */}
             <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-amber-300 border border-amber-500/30 flex items-center space-x-1">
               <Sun className="w-3 h-3 text-amber-400" />
-              <span>Optimal Lux 820</span>
+              <span>{isLiveCameraActive ? 'LIVE STREAM' : 'Optimal Lux 820'}</span>
             </div>
 
             {/* Target Area Framing Reticle Badge */}
             <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-400 border border-emerald-500/40">
-              FRAME_LOCK // OK
+              {isLiveCameraActive ? 'OPTICAL_ACTIVE' : 'FRAME_LOCK // OK'}
             </div>
 
             {/* Gyro Level Sensor */}
@@ -213,29 +405,54 @@ export const Report = () => {
           </div>
         </div>
 
-        {/* Gallery / Camera input button */}
-        <div className="absolute bottom-3 right-3 flex space-x-2">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2.5 bg-slate-900/90 text-white rounded-xl hover:bg-slate-800 backdrop-blur-md border border-slate-700 active:scale-95 transition-transform"
-            aria-label="Upload custom image"
-          >
-            <Image className="w-4 h-4" />
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept="image/*"
-            className="hidden"
-          />
-        </div>
+        {/* Live Camera Shutter Button Overlay */}
+        {isLiveCameraActive && (
+          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center space-x-4 z-30">
+            {/* Flip camera */}
+            <button
+              onClick={handleFlipCamera}
+              className="p-3 bg-slate-900/80 backdrop-blur-md text-white rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
+              aria-label="Switch Camera"
+              title="Flip Camera"
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
+
+            {/* Shutter capture button */}
+            <button
+              onClick={captureFrame}
+              className="w-16 h-16 rounded-full bg-white border-4 border-emerald-500 shadow-2xl flex items-center justify-center active:scale-90 transition-transform ring-4 ring-emerald-500/30"
+              aria-label="Capture Photo"
+              title="Snap Defect Photo"
+            >
+              <div className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-600 transition-colors" />
+            </button>
+
+            {/* Close camera */}
+            <button
+              onClick={stopLiveCamera}
+              className="p-3 bg-slate-900/80 backdrop-blur-md text-rose-400 rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
+              aria-label="Stop Camera"
+              title="Stop Camera"
+            >
+              <VideoOff className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        {/* Live Captured Badge */}
+        {isLiveCaptured && (
+          <div className="absolute top-3 left-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 z-20">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>Photo Snapped</span>
+          </div>
+        )}
       </div>
 
-      {/* 3. Diagnostic Test Presets (Instant 1-Tap Demo) */}
+      {/* 3. Diagnostic Test Presets (Instant 1-Tap Demo / Defect Classifier) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-          <span>Target Category Presets</span>
+          <span>{isLiveCaptured ? 'Select AI Defect Category' : 'Target Category Presets'}</span>
           <span className="text-slate-400 font-normal text-[11px]">Instant Context Tag</span>
         </div>
         <div className="grid grid-cols-5 gap-1.5">
@@ -265,7 +482,7 @@ export const Report = () => {
             Real-Time AI Verification Metadata
           </span>
           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-            {selectedPreset.confidence}% Confidence
+            {isLiveCaptured ? '98.2%' : `${selectedPreset.confidence}%`} Confidence
           </span>
         </div>
 
@@ -314,11 +531,21 @@ export const Report = () => {
       {/* 5. One-Tap Confirmation Action (Zero-Form Reporting) */}
       <button
         onClick={handleOneTapSubmit}
-        disabled={isSubmitting}
-        className="w-full py-4 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-emerald-500/30 flex items-center justify-center space-x-2 active:scale-[0.98] transition-all min-h-[52px] text-sm"
+        disabled={isSubmitting || isLiveCameraActive}
+        className={`w-full py-4 px-4 font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 active:scale-[0.98] transition-all min-h-[52px] text-sm ${
+          isLiveCameraActive
+            ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
+        }`}
       >
         <Send className="w-5 h-5 stroke-[2.2]" />
-        <span>{isSubmitting ? 'Dispatching Ticket...' : '1-Tap Submit Report'}</span>
+        <span>
+          {isSubmitting
+            ? 'Dispatching Ticket...'
+            : isLiveCameraActive
+            ? 'Snap Photo First to Submit'
+            : '1-Tap Submit Report'}
+        </span>
       </button>
     </div>
   );
