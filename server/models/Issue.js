@@ -153,6 +153,13 @@ const issueSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    reportedBy: {
+      id: { type: String, default: null },
+      name: { type: String, default: null },
+      email: { type: String, default: null },
+      phone: { type: String, default: null },
+      deviceId: { type: String, default: null },
+    },
     timeline: [timelineEventSchema],
   },
   {

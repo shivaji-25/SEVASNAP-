@@ -19,7 +19,7 @@ import {
 
 export const Profile = () => {
   const navigate = useNavigate();
-  const { user, userRole, setUserRole, logout, issues, upvotedTickets, userLocation } = useCivic();
+  const { user, userRole, setUserRole, logout, issues, myIssues, upvotedTickets, userLocation } = useCivic();
 
   const isGov = userRole === 'admin' || userRole === 'authority' || user?.role === 'authority';
 
@@ -34,7 +34,7 @@ export const Profile = () => {
   };
 
   const upvotedCount = Object.values(upvotedTickets || {}).filter(Boolean).length;
-  const resolvedCount = issues.filter((i) => i.status === 'resolved').length;
+  const resolvedCount = (myIssues || []).filter((i) => i.status === 'resolved').length;
 
   const handleSwitchToAuthority = () => {
     setUserRole('authority');
@@ -83,14 +83,14 @@ export const Profile = () => {
         {/* Civic Impact Metrics */}
         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center">
           <div className="bg-slate-800/60 p-2 rounded-2xl border border-slate-700/60">
-            <div className="text-base font-black text-emerald-400">{issues.length}</div>
+            <div className="text-base font-black text-emerald-400">{myIssues ? myIssues.length : 0}</div>
             <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
               Reports
             </div>
           </div>
 
           <div className="bg-slate-800/60 p-2 rounded-2xl border border-slate-700/60">
-            <div className="text-base font-black text-amber-400">{upvotedCount || 12}</div>
+            <div className="text-base font-black text-amber-400">{upvotedCount || 0}</div>
             <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
               Endorsed
             </div>
@@ -133,44 +133,56 @@ export const Profile = () => {
             My Reported Issues
           </h3>
           <span className="text-[10px] font-bold text-slate-500">
-            {issues.length} Tickets
+            {myIssues ? myIssues.length : 0} Tickets
           </span>
         </div>
 
         <div className="space-y-2">
-          {issues.slice(0, 3).map((item) => (
-            <div
-              key={item._id || item.ticketId}
-              onClick={() => navigate(`/tracking?ticket=${item.ticketId}`)}
-              className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200/80 flex items-center justify-between cursor-pointer transition-all"
-            >
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0">
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.src =
-                        'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=400&q=80';
-                    }}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">{item.title}</div>
-                  <div className="text-[10px] font-mono text-slate-500">{item.ticketId} • {item.priority} Priority</div>
-                </div>
-              </div>
-
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                item.status === 'resolved'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}>
-                {item.status.toUpperCase()}
-              </span>
+          {!myIssues || myIssues.length === 0 ? (
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-1">
+              <p className="text-xs text-slate-500 font-medium">You haven't reported any civic complaints yet.</p>
+              <button
+                onClick={() => navigate('/report')}
+                className="text-[11px] font-bold text-emerald-600 hover:underline cursor-pointer"
+              >
+                Report your first issue →
+              </button>
             </div>
-          ))}
+          ) : (
+            myIssues.slice(0, 5).map((item) => (
+              <div
+                key={item._id || item.ticketId}
+                onClick={() => navigate(`/tracking?ticket=${item.ticketId}`)}
+                className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200/80 flex items-center justify-between cursor-pointer transition-all"
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src =
+                          'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=400&q=80';
+                      }}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 truncate">{item.title}</div>
+                    <div className="text-[10px] font-mono text-slate-500">{item.ticketId} • {item.priority} Priority</div>
+                  </div>
+                </div>
+
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  item.status === 'resolved'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {item.status.toUpperCase()}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

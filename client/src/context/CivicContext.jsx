@@ -182,6 +182,31 @@ export const CivicProvider = ({ children }) => {
     return id;
   });
 
+  // Track ticket IDs reported by this citizen device/account
+  const [myReportedTicketIds, setMyReportedTicketIds] = useState(() => {
+    const saved = localStorage.getItem('sevasnap_my_ticket_ids');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Filter issues belonging exclusively to this citizen reporter
+  const myIssues = issues.filter((iss) => {
+    if (myReportedTicketIds.includes(iss.ticketId)) return true;
+    if (iss.reportedBy) {
+      if (
+        user &&
+        (iss.reportedBy.id === user._id ||
+          iss.reportedBy.id === user.id ||
+          (user.email && iss.reportedBy.email === user.email))
+      ) {
+        return true;
+      }
+      if (iss.reportedBy.deviceId && iss.reportedBy.deviceId === deviceId) {
+        return true;
+      }
+    }
+    return false;
+  });
+
   // Track upvoted tickets in local state for rapid UI toggling
   const [upvotedTickets, setUpvotedTickets] = useState(() => {
     const saved = localStorage.getItem('sevasnap_upvotes');
@@ -496,11 +521,33 @@ export const CivicProvider = ({ children }) => {
   // Submit and create new issue (SRS SCR-02, SCR-03)
   const submitIssue = async (issuePayload) => {
     setLoading(true);
+    const reporterData = {
+      id: user?._id || user?.id || null,
+      name: user?.name || 'Citizen Reporter',
+      email: user?.email || null,
+      phone: user?.phoneNumber || user?.phone || null,
+      deviceId,
+    };
+
     try {
-      const response = await api.createIssue(issuePayload);
+      const payloadWithReporter = {
+        ...issuePayload,
+        deviceId,
+        reportedBy: reporterData,
+      };
+
+      const response = await api.createIssue(payloadWithReporter);
       const created = response.data;
       setIssues((prev) => [created, ...prev]);
       setCurrentIssue(created);
+
+      // Record ticket ID to citizen's personal reported tickets
+      setMyReportedTicketIds((prev) => {
+        const next = [created.ticketId, ...prev.filter((id) => id !== created.ticketId)];
+        localStorage.setItem('sevasnap_my_ticket_ids', JSON.stringify(next));
+        return next;
+      });
+
       return { success: true, issue: created, duplicateWarning: response.duplicateWarning };
     } catch (err) {
       console.warn('Offline report submission fallback:', err.message);
@@ -520,6 +567,7 @@ export const CivicProvider = ({ children }) => {
         department: issuePayload.department || 'Municipal Corporation',
         status: 'reported',
         reportedAt: new Date().toISOString(),
+        reportedBy: reporterData,
         upvotes: 1,
         timeline: [
           {
@@ -533,6 +581,13 @@ export const CivicProvider = ({ children }) => {
       };
       setIssues((prev) => [offlineIssue, ...prev]);
       setCurrentIssue(offlineIssue);
+
+      setMyReportedTicketIds((prev) => {
+        const next = [offlineIssue.ticketId, ...prev.filter((id) => id !== offlineIssue.ticketId)];
+        localStorage.setItem('sevasnap_my_ticket_ids', JSON.stringify(next));
+        return next;
+      });
+
       return { success: true, issue: offlineIssue };
     } finally {
       setLoading(false);
@@ -711,6 +766,9 @@ export const CivicProvider = ({ children }) => {
     <CivicContext.Provider
       value={{
         issues,
+        myIssues,
+        myReportedTicketIds,
+        setMyReportedTicketIds,
         currentIssue,
         setCurrentIssue,
         userLocation,

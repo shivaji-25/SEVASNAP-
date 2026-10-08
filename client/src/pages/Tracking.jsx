@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import {
   CheckCircle2,
@@ -23,9 +23,11 @@ const STAGES = [
 ];
 
 export const Tracking = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     issues,
+    myIssues,
     currentIssue,
     setCurrentIssue,
     advanceIssueStatus,
@@ -59,11 +61,19 @@ export const Tracking = () => {
     { name: 'MG Road / CBD', ward: 'Ward 111, Shantala Nagar', address: 'MG Road Metro Station', lat: 12.9756, lng: 77.6066 },
   ];
 
-  // Active tracked issue
+  // For citizens: only show their reported complaints. For admin: show all issues
+  const citizenTrackableIssues = isAdmin
+    ? issues
+    : myIssues && myIssues.length > 0
+    ? myIssues
+    : currentIssue
+    ? [currentIssue]
+    : [];
+
+  // Active tracked issue: prioritize URL param or citizen's own reported issue
   const activeIssue =
     (ticketParam ? issues.find((i) => i.ticketId === ticketParam) : null) ||
-    currentIssue ||
-    issues[0];
+    (citizenTrackableIssues.length > 0 ? citizenTrackableIssues[0] : null);
 
   const openLocationEditor = () => {
     setEditWard(activeIssue?.location?.ward || 'Sulur, Coimbatore');
@@ -150,8 +160,27 @@ export const Tracking = () => {
 
   if (!activeIssue) {
     return (
-      <div className="p-8 text-center text-slate-500 max-w-md mx-auto">
-        No active civic tickets available to track.
+      <div className="pb-28 pt-8 px-4 max-w-md mx-auto space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-4 shadow-sm">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <Camera className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-slate-900">
+              No Reported Complaints Yet
+            </h3>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+              You haven't filed any civic complaints yet. When you snap and report a defect on your street, your live resolution tracker will appear here.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/report')}
+            className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-md flex items-center justify-center space-x-2 active:scale-95 transition-all text-xs cursor-pointer"
+          >
+            <Camera className="w-4 h-4 text-emerald-400" />
+            <span>Snap & Report Civic Defect</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -230,23 +259,25 @@ export const Tracking = () => {
           </div>
         </div>
 
-        {/* Dropdown Switcher */}
-        <div className="pt-1">
-          <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-            Switch Monitored Ticket
-          </label>
-          <select
-            value={activeIssue.ticketId}
-            onChange={(e) => setSearchParams({ ticket: e.target.value })}
-            className="w-full bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl py-2 px-3 focus:outline-none focus:border-emerald-500"
-          >
-            {issues.map((iss) => (
-              <option key={iss.ticketId} value={iss.ticketId}>
-                {iss.ticketId} — {iss.categoryName} ({iss.status.toUpperCase()})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Dropdown Switcher: only displays citizen's reported issues, or all if admin */}
+        {citizenTrackableIssues.length > 1 && (
+          <div className="pt-1">
+            <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+              {isAdmin ? 'Switch Monitored Ticket (All Municipal Records)' : 'My Reported Complaints'}
+            </label>
+            <select
+              value={activeIssue.ticketId}
+              onChange={(e) => setSearchParams({ ticket: e.target.value })}
+              className="w-full bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl py-2 px-3 focus:outline-none focus:border-emerald-500"
+            >
+              {citizenTrackableIssues.map((iss) => (
+                <option key={iss.ticketId} value={iss.ticketId}>
+                  {iss.ticketId} — {iss.categoryName} ({iss.status.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Ticket Location Calibration Modal */}

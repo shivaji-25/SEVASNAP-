@@ -38,6 +38,8 @@ exports.getIssues = async (req, res) => {
     if (status && status !== 'all') filter.status = status;
     if (department) filter.department = department;
     if (priority) filter.priority = priority;
+    if (req.query.deviceId) filter['reportedBy.deviceId'] = req.query.deviceId;
+    if (req.query.reporterId) filter['reportedBy.id'] = req.query.reporterId;
 
     // Geospatial nearby filtering (MongoDB 2dsphere index)
     if (lat && lng) {
@@ -328,6 +330,13 @@ exports.createIssue = async (req, res) => {
       confidence: confidence || 96.5,
       department: finalDepartment,
       status: 'reported',
+      reportedBy: req.body.reportedBy || {
+        id: req.body.userId || null,
+        name: req.body.userName || 'Citizen Reporter',
+        email: req.body.userEmail || null,
+        phone: req.body.userPhone || null,
+        deviceId: req.body.deviceId || null,
+      },
       timeline: initialTimeline,
     });
 
