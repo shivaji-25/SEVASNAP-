@@ -6,6 +6,9 @@ import { Navbar } from './components/Navbar';
 
 // Pages
 import { Home } from './pages/Home';
+import { Welcome } from './pages/Welcome';
+import { CitizenAuth } from './pages/CitizenAuth';
+import { AuthorityAuth } from './pages/AuthorityAuth';
 import { Map } from './pages/Map';
 import { Report } from './pages/Report';
 import { AiAnalysis } from './pages/AiAnalysis';
@@ -24,6 +27,9 @@ export default function App() {
           <main className="flex-1 w-full overflow-y-auto">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/welcome" element={<Welcome />} />
+              <Route path="/auth/citizen" element={<CitizenAuth />} />
+              <Route path="/auth/authority" element={<AuthorityAuth />} />
               <Route path="/map" element={<Map />} />
               <Route path="/report" element={<Report />} />
               <Route path="/ai-analysis" element={<AiAnalysis />} />

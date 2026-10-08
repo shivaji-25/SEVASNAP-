@@ -6,16 +6,23 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
- * Generic request helper with error handling
+ * Generic request helper with error handling & token attachment
  */
 const request = async (endpoint, options = {}) => {
   try {
+    const token = localStorage.getItem('sevasnap_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
       ...options,
+      headers,
     };
 
     // If uploading FormData, delete Content-Type to let browser set boundary
@@ -37,7 +44,46 @@ const request = async (endpoint, options = {}) => {
   }
 };
 
-// 1. Issues CRUD & queries
+// ==========================================
+// AUTHENTICATION APIs
+// ==========================================
+
+export const registerCitizen = async (data) => {
+  return await request('/auth/register-citizen', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const loginCitizen = async (data) => {
+  return await request('/auth/login-citizen', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const registerAuthority = async (data) => {
+  return await request('/auth/register-authority', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const loginAuthority = async (data) => {
+  return await request('/auth/login-authority', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const getMe = async () => {
+  return await request('/auth/me');
+};
+
+// ==========================================
+// ISSUES & CIVIC APIs
+// ==========================================
+
 export const getIssues = async (params = {}) => {
   const query = new URLSearchParams();
   if (params.category && params.category !== 'all') query.append('category', params.category);
@@ -81,7 +127,7 @@ export const deleteIssue = async (id) => {
   });
 };
 
-// 2. Status Lifecycle API (Forward only: reported -> assigned -> in_progress -> resolved)
+// Status Lifecycle API (Forward only: reported -> assigned -> in_progress -> resolved)
 export const updateIssueStatus = async (id, statusData) => {
   const response = await request(`/issues/${id}/status`, {
     method: 'POST',
@@ -90,7 +136,7 @@ export const updateIssueStatus = async (id, statusData) => {
   return response.data;
 };
 
-// 3. Upvote API (One vote per user/device)
+// Upvote API (One vote per user/device)
 export const upvoteIssue = async (id, deviceId) => {
   const response = await request(`/issues/${id}/upvote`, {
     method: 'POST',
@@ -99,7 +145,7 @@ export const upvoteIssue = async (id, deviceId) => {
   return response;
 };
 
-// 4. Image Upload (Multer)
+// Image Upload (Multer)
 export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append('image', file);
@@ -108,10 +154,10 @@ export const uploadImage = async (file) => {
     method: 'POST',
     body: formData,
   });
-  return response; // contains { success, imageUrl, filename }
+  return response;
 };
 
-// 5. AI Sentinel Triage Analysis
+// AI Sentinel Triage Analysis
 export const analyzeIssue = async ({ image, location, description, presetKey }) => {
   const response = await request('/ai/analyze', {
     method: 'POST',
@@ -120,7 +166,7 @@ export const analyzeIssue = async ({ image, location, description, presetKey }) 
   return response.data;
 };
 
-// 6. Authority Statistics & Telemetry
+// Authority Statistics & Telemetry
 export const getAuthorityStats = async () => {
   const response = await request('/authority/stats');
   return response.data;

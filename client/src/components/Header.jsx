@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
-import { Shield, Navigation, UserCheck, ShieldAlert, Check, Edit2, X } from 'lucide-react';
+import { Shield, Navigation, UserCheck, ShieldAlert, Check, Edit2, X, LogIn, LogOut } from 'lucide-react';
 
 export const Header = () => {
-  const { userLocation, setUserLocation, detectLocation, userRole, setUserRole } = useCivic();
+  const navigate = useNavigate();
+  const { userLocation, setUserLocation, detectLocation, userRole, setUserRole, user, logout } = useCivic();
   const [isDetecting, setIsDetecting] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [customWard, setCustomWard] = useState(userLocation.ward || '');
@@ -33,6 +35,14 @@ export const Header = () => {
         accuracy: 'Custom Calibrated',
       });
       setShowLocationModal(false);
+    }
+  };
+
+  const handleRoleChange = (role) => {
+    setUserRole(role);
+    // If user is not logged in or in different role, redirect to welcome or role auth
+    if (!user || user.role !== role) {
+      navigate('/welcome');
     }
   };
 
@@ -73,37 +83,51 @@ export const Header = () => {
           </button>
         </div>
 
-        {/* Role Switcher (Citizen vs Government Admin) */}
-        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            User Role:
-          </span>
+        {/* User Identity & Official Badge Bar */}
+        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+          {user ? (
+            <div className="flex items-center space-x-2 truncate">
+              <span className="text-[11px] font-bold text-slate-200 truncate max-w-[140px]">
+                {user.name}
+              </span>
+              {user.role === 'authority' ? (
+                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                  🏛 Municipal Authority
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-md">
+                  Citizen
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Portal:
+              </span>
+              <span className="text-[10px] font-bold text-slate-200">
+                {userRole === 'authority' || userRole === 'admin' ? '🏛 Municipal Authority' : '👤 Citizen'}
+              </span>
+            </div>
+          )}
 
-          {/* Segmented Switcher */}
-          <div className="flex bg-slate-800/90 p-0.5 rounded-xl border border-slate-700/80 text-[11px] font-bold">
-            {/* Role 1: Citizen (Raise & Track) */}
+          {/* Role Switch / Auth Button */}
+          <div className="flex items-center space-x-1.5">
             <button
-              onClick={() => setUserRole('citizen')}
-              className={`flex items-center space-x-1 px-3 py-1 rounded-lg transition-all ${
-                userRole === 'citizen'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={() => navigate('/welcome')}
+              className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
             >
-              <span>👤 Citizen</span>
+              Switch Role
             </button>
-
-            {/* Role 2: Government Admin (Manage & Triage) */}
-            <button
-              onClick={() => setUserRole('admin')}
-              className={`flex items-center space-x-1 px-3 py-1 rounded-lg transition-all ${
-                userRole === 'admin'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>🏛️ Gov Admin</span>
-            </button>
+            {user && (
+              <button
+                onClick={logout}
+                className="text-[10px] font-bold text-red-400 hover:text-red-300 px-1.5 py-1"
+                title="Sign Out"
+              >
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </header>

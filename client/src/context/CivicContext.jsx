@@ -143,7 +143,28 @@ export const CivicProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('sevasnap_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem('sevasnap_token') || null;
+  });
+
   const [userRole, setUserRoleState] = useState(() => {
+    const savedUser = localStorage.getItem('sevasnap_user');
+    if (savedUser) {
+      try {
+        const u = JSON.parse(savedUser);
+        if (u.role) return u.role;
+      } catch {}
+    }
     return localStorage.getItem('sevasnap_user_role') || 'citizen';
   });
 
@@ -414,6 +435,76 @@ export const CivicProvider = ({ children }) => {
     }
   };
 
+  // Auth: Citizen Login & Register
+  const loginCitizenUser = async (email, password) => {
+    setLoading(true);
+    try {
+      const res = await api.loginCitizen({ email, password });
+      setUser(res.user);
+      setToken(res.token);
+      localStorage.setItem('sevasnap_user', JSON.stringify(res.user));
+      localStorage.setItem('sevasnap_token', res.token);
+      setUserRole('citizen');
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerCitizenUser = async (data) => {
+    setLoading(true);
+    try {
+      const res = await api.registerCitizen(data);
+      setUser(res.user);
+      setToken(res.token);
+      localStorage.setItem('sevasnap_user', JSON.stringify(res.user));
+      localStorage.setItem('sevasnap_token', res.token);
+      setUserRole('citizen');
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auth: Authority Login & Register
+  const loginAuthorityUser = async (employeeId, password) => {
+    setLoading(true);
+    try {
+      const res = await api.loginAuthority({ employeeId, password });
+      setUser(res.user);
+      setToken(res.token);
+      localStorage.setItem('sevasnap_user', JSON.stringify(res.user));
+      localStorage.setItem('sevasnap_token', res.token);
+      setUserRole('authority');
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerAuthorityUser = async (data) => {
+    setLoading(true);
+    try {
+      const res = await api.registerAuthority(data);
+      setUser(res.user);
+      setToken(res.token);
+      localStorage.setItem('sevasnap_user', JSON.stringify(res.user));
+      localStorage.setItem('sevasnap_token', res.token);
+      setUserRole('authority');
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Logout
+  const logout = () => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('sevasnap_user');
+    localStorage.removeItem('sevasnap_token');
+  };
+
   return (
     <CivicContext.Provider
       value={{
@@ -433,8 +524,15 @@ export const CivicProvider = ({ children }) => {
         toggleUpvote,
         upvotedTickets,
         refreshIssues,
+        user,
+        token,
         userRole,
         setUserRole,
+        loginCitizenUser,
+        registerCitizenUser,
+        loginAuthorityUser,
+        registerAuthorityUser,
+        logout,
         loading,
         error,
       }}

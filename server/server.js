@@ -37,6 +37,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Register REST API Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/issues', require('./routes/issueRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
