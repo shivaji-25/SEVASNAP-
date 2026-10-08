@@ -11,6 +11,7 @@ import {
   MapPin,
   AlertTriangle,
   UploadCloud,
+  Smartphone,
 } from 'lucide-react';
 
 export const CameraCapture = ({
@@ -23,7 +24,7 @@ export const CameraCapture = ({
   const [capturedImage, setCapturedImage] = useState(null); // Data URL or URL
   const [capturedFile, setCapturedFile] = useState(null); // File object for Multer upload
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' or 'user'
-  const [cameraError, setCameraError] = useState(null);
+  const [cameraNotice, setCameraNotice] = useState(null);
   const [isFlashing, setIsFlashing] = useState(false);
 
   const videoRef = useRef(null);
@@ -39,10 +40,28 @@ export const CameraCapture = ({
     };
   }, []);
 
-  // 1. Start Live Browser Camera Stream (Webcam / Live Viewfinder)
+  // Stop live video stream
+  const stopLiveStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setStreamActive(false);
+  };
+
+  // 1. Start Live Browser Camera Stream (or fallback to device camera if unavailable)
   const startLiveStream = async (facing = cameraFacing) => {
+    setCameraNotice(null);
+
+    // If browser doesn't support getUserMedia or is in insecure HTTP context
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      console.warn('getUserMedia not supported in this context. Launching native device camera...');
+      setCameraNotice('Live stream unsupported in this browser/network. Opening native device camera...');
+      nativeCameraInputRef.current?.click();
+      return;
+    }
+
     try {
-      setCameraError(null);
       stopLiveStream();
 
       const constraints = {
@@ -56,28 +75,38 @@ export const CameraCapture = ({
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((playErr) => console.warn('Autoplay note:', playErr));
       }
+
       setStreamActive(true);
       setCapturedImage(null);
       setCapturedFile(null);
     } catch (err) {
-      console.warn('Live camera stream error:', err);
-      setCameraError(
-        'Unable to access live webcam. You can use the Native Device Camera or Gallery button below.'
+      console.warn('Live camera access error:', err.message);
+      setCameraNotice(
+        'Camera permission was blocked or unavailable. Opening native device camera...'
       );
       setStreamActive(false);
+      // Auto-fallback to native mobile camera
+      nativeCameraInputRef.current?.click();
     }
   };
 
-  // Stop live video stream
-  const stopLiveStream = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setStreamActive(false);
+  // Launch Native Mobile Camera explicitly
+  const openDeviceCamera = () => {
+    stopLiveStream();
+    setCameraNotice(null);
+    nativeCameraInputRef.current?.click();
+  };
+
+  // Launch Gallery Picker explicitly
+  const openGallery = () => {
+    stopLiveStream();
+    setCameraNotice(null);
+    galleryInputRef.current?.click();
   };
 
   // Flip front / rear camera
@@ -137,13 +166,16 @@ export const CameraCapture = ({
       };
       reader.readAsDataURL(file);
     }
+    // Reset input value so re-selecting the same file triggers onChange
+    e.target.value = '';
   };
 
   // 4. Retake photo
   const handleRetake = () => {
     setCapturedImage(null);
     setCapturedFile(null);
-    // Restart camera or open picker
+    setCameraNotice(null);
+    // Open camera again
     startLiveStream();
   };
 
@@ -162,6 +194,7 @@ export const CameraCapture = ({
     stopLiveStream();
     setCapturedImage(preset.image);
     setCapturedFile(null); // Preset uses online URL
+    setCameraNotice(null);
     if (onSelectPreset) {
       onSelectPreset(preset);
     }
@@ -172,7 +205,7 @@ export const CameraCapture = ({
       {/* Hidden rasterization canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Hidden HTML5 Native Mobile Camera capture */}
+      {/* HTML5 Native Mobile Camera capture (Hardware camera launch) */}
       <input
         type="file"
         ref={nativeCameraInputRef}
@@ -182,7 +215,7 @@ export const CameraCapture = ({
         className="hidden"
       />
 
-      {/* Hidden Gallery file picker */}
+      {/* HTML5 Gallery file picker */}
       <input
         type="file"
         ref={galleryInputRef}
@@ -205,7 +238,16 @@ export const CameraCapture = ({
       </div>
 
       {/* Main Camera Viewport & Preview Frame */}
-      <div className="relative aspect-[4/3] rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl flex items-center justify-center group">
+      <div
+        onClick={() => {
+          if (!streamActive && !capturedImage) {
+            startLiveStream();
+          }
+        }}
+        className={`relative aspect-[4/3] rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl flex items-center justify-center transition-all ${
+          !streamActive && !capturedImage ? 'cursor-pointer hover:border-emerald-500/50' : ''
+        }`}
+      >
         {/* Shutter Flash Animation */}
         {isFlashing && (
           <div className="absolute inset-0 bg-white z-50 transition-opacity duration-150 pointer-events-none" />
@@ -231,16 +273,16 @@ export const CameraCapture = ({
           />
         )}
 
-        {/* 3. Standby / Empty Viewfinder State */}
+        {/* 3. Standby / Tap to Open Camera State */}
         {!streamActive && !capturedImage && (
-          <div className="p-6 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center border border-slate-800 text-emerald-400">
-              <Camera className="w-8 h-8" />
+          <div className="p-6 text-center text-slate-400 flex flex-col items-center justify-center space-y-3 select-none">
+            <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center border border-slate-800 text-emerald-400 shadow-lg shadow-emerald-500/10 group-hover:scale-105 transition-transform">
+              <Camera className="w-8 h-8 stroke-[2.2]" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-200">Camera Standby</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Tap "Open Camera" to capture defect or "Gallery" to upload.
+              <p className="text-xs font-black text-white">Tap to Open Camera</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Snap photo with phone camera or upload from gallery
               </p>
             </div>
           </div>
@@ -278,7 +320,11 @@ export const CameraCapture = ({
           <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center space-x-5 z-40">
             {/* Flip Camera */}
             <button
-              onClick={handleFlipCamera}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFlipCamera();
+              }}
               className="p-3 bg-slate-900/80 backdrop-blur-md text-white rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
               title="Flip Camera"
             >
@@ -287,7 +333,11 @@ export const CameraCapture = ({
 
             {/* Shutter Button */}
             <button
-              onClick={handleShutterCapture}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShutterCapture();
+              }}
               className="w-16 h-16 rounded-full bg-white border-4 border-emerald-500 shadow-2xl flex items-center justify-center active:scale-90 transition-transform ring-4 ring-emerald-500/30"
               title="Capture Photo"
             >
@@ -296,7 +346,11 @@ export const CameraCapture = ({
 
             {/* Close Live Camera */}
             <button
-              onClick={stopLiveStream}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                stopLiveStream();
+              }}
               className="p-3 bg-slate-900/80 backdrop-blur-md text-rose-400 rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
               title="Stop Camera"
             >
@@ -305,48 +359,51 @@ export const CameraCapture = ({
           </div>
         )}
 
-        {/* Selected Image Preview Badge */}
+        {/* Selected Image Ready Badge */}
         {!streamActive && capturedImage && (
           <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1 shadow-md">
             <Check className="w-3 h-3" />
-            <span>Image Ready</span>
+            <span>Photo Ready</span>
           </div>
         )}
       </div>
 
-      {/* Camera Permission Alert */}
-      {cameraError && (
+      {/* Helpful Camera Notice/Alert */}
+      {cameraNotice && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 flex items-start space-x-2 text-xs text-amber-900">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <span className="leading-snug">{cameraError}</span>
+          <span className="leading-snug">{cameraNotice}</span>
         </div>
       )}
 
-      {/* Action Buttons: Open Camera / Device Cam / Gallery / Retake / Confirm */}
+      {/* Action Buttons: Device Cam / Live Viewfinder / Gallery */}
       {!streamActive && !capturedImage && (
         <div className="grid grid-cols-3 gap-2">
-          {/* 1. Open Live In-Browser Camera */}
+          {/* 1. Mobile Device Hardware Camera (Always works on phones!) */}
           <button
-            onClick={() => startLiveStream()}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all"
+            type="button"
+            onClick={openDeviceCamera}
+            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer"
           >
-            <Camera className="w-4 h-4" />
-            <span>Live Camera</span>
+            <Smartphone className="w-4 h-4 text-emerald-200" />
+            <span>Phone Cam</span>
           </button>
 
-          {/* 2. Mobile Device Native Camera (capture="environment") */}
+          {/* 2. Live In-Browser Viewfinder */}
           <button
-            onClick={() => nativeCameraInputRef.current?.click()}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md border border-slate-700 active:scale-95 transition-all"
+            type="button"
+            onClick={() => startLiveStream()}
+            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md border border-slate-700 active:scale-95 transition-all cursor-pointer"
           >
             <Camera className="w-4 h-4 text-amber-400" />
-            <span>Device Cam</span>
+            <span>Live Feed</span>
           </button>
 
           {/* 3. Upload from Gallery */}
           <button
-            onClick={() => galleryInputRef.current?.click()}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm active:scale-95 transition-all"
+            type="button"
+            onClick={openGallery}
+            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm active:scale-95 transition-all cursor-pointer"
           >
             <ImageIcon className="w-4 h-4 text-slate-500" />
             <span>Gallery</span>
@@ -359,8 +416,9 @@ export const CameraCapture = ({
         <div className="grid grid-cols-2 gap-2">
           {/* Retake Button */}
           <button
+            type="button"
             onClick={handleRetake}
-            className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs flex items-center justify-center space-x-1.5 active:scale-95 transition-all"
+            className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs flex items-center justify-center space-x-1.5 active:scale-95 transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Retake Photo</span>
@@ -368,8 +426,9 @@ export const CameraCapture = ({
 
           {/* Confirm Button */}
           <button
+            type="button"
             onClick={handleConfirm}
-            className="py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+            className="py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
           >
             <Check className="w-4 h-4 stroke-[2.5]" />
             <span>Confirm Photo</span>
@@ -386,9 +445,10 @@ export const CameraCapture = ({
         <div className="grid grid-cols-5 gap-1.5">
           {presets.map((preset) => (
             <button
+              type="button"
               key={preset.key}
               onClick={() => handleSelectPreset(preset)}
-              className="flex flex-col items-center justify-center p-2 rounded-2xl border text-center transition-all bg-white hover:bg-slate-50 border-slate-200 text-slate-700 active:scale-95 shadow-sm"
+              className="flex flex-col items-center justify-center p-2 rounded-2xl border text-center transition-all bg-white hover:bg-slate-50 border-slate-200 text-slate-700 active:scale-95 shadow-sm cursor-pointer"
             >
               <span className="text-base">{preset.icon}</span>
               <span className="text-[10px] mt-1 leading-tight truncate w-full font-bold">
