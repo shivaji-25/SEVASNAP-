@@ -106,7 +106,7 @@ export const Map = () => {
   }, [filteredIssues, userLocation]);
 
   return (
-    <div className="relative h-[100dvh] w-full max-w-md mx-auto overflow-hidden">
+    <div className="relative h-full w-full max-w-md mx-auto overflow-hidden">
       {/* 1. Top Filter Pills Overlay */}
       <div className="absolute top-3 left-4 right-4 z-[400] flex space-x-1.5 overflow-x-auto no-scrollbar bg-slate-900/80 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 shadow-lg">
         {['all', 'high', 'medium', 'low', 'resolved'].map((filter) => (

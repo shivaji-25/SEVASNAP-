@@ -19,12 +19,13 @@ export default function App() {
   return (
     <CivicProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-between max-w-md mx-auto shadow-2xl relative border-x border-slate-200/80 font-sans">
-          {/* Mobile Header */}
+        {/* Unified Mobile-Frame Shell with Seamless Momentum Scrolling */}
+        <div className="h-screen h-[100dvh] w-full max-w-md mx-auto bg-slate-50 flex flex-col shadow-2xl relative border-x border-slate-200/80 font-sans overflow-hidden">
+          {/* Sleek Fixed Header */}
           <Header />
 
-          {/* Main Mobile Screen Viewport */}
-          <main className="flex-1 w-full overflow-y-auto">
+          {/* Primary Viewport: Smooth Native Momentum Scrolling */}
+          <main className="flex-1 w-full overflow-y-auto overflow-x-hidden overscroll-y-contain relative">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/welcome" element={<Welcome />} />
@@ -38,7 +39,7 @@ export default function App() {
             </Routes>
           </main>
 
-          {/* Mobile Bottom Navigation */}
+          {/* Fixed Bottom Navigation */}
           <Navbar />
         </div>
       </BrowserRouter>

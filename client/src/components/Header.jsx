@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
-import { Shield, Navigation, UserCheck, ShieldAlert, Check, Edit2, X, LogIn, LogOut } from 'lucide-react';
+import { Shield, Navigation, UserCheck, ShieldAlert, Check, Edit2, X, LogIn, LogOut, ChevronDown } from 'lucide-react';
 
 export const Header = () => {
   const navigate = useNavigate();
   const { userLocation, setUserLocation, detectLocation, userRole, setUserRole, user, logout } = useCivic();
   const [isDetecting, setIsDetecting] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [customWard, setCustomWard] = useState(userLocation.ward || '');
   const [customAddress, setCustomAddress] = useState(userLocation.address || '');
 
@@ -38,98 +39,101 @@ export const Header = () => {
     }
   };
 
-  const handleRoleChange = (role) => {
-    setUserRole(role);
-    // If user is not logged in or in different role, redirect to welcome or role auth
-    if (!user || user.role !== role) {
-      navigate('/welcome');
-    }
-  };
+  const isGov = user?.role === 'authority' || userRole === 'admin';
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-slate-100 px-4 py-2.5 shadow-md max-w-md mx-auto">
-        {/* Top Row: Brand & Live GPS */}
-        <div className="flex items-center justify-between">
-          {/* Brand */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950 font-black tracking-wider text-base shadow-sm shadow-emerald-500/20">
+      <header className="flex-shrink-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 px-3.5 py-2.5 shadow-sm w-full transition-all duration-200">
+        {/* Compact Single-Row Layout */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Brand Logo & Name */}
+          <div
+            onClick={() => navigate('/')}
+            className="flex items-center space-x-2 cursor-pointer shrink-0 group select-none"
+          >
+            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950 font-black tracking-wider text-xs shadow-sm shadow-emerald-500/20 group-hover:bg-emerald-400 transition-colors">
               SS
             </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5 leading-none">
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-sm font-black tracking-tight text-white leading-none">
                 SEVASNAP
-                <span className="text-[9px] font-semibold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                  AI CIVIC
-                </span>
               </h1>
+              <span className="text-[8px] font-bold bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded-full border border-emerald-500/30">
+                AI CIVIC
+              </span>
             </div>
           </div>
 
-          {/* Interactive Live GPS Button */}
-          <button
-            onClick={() => setShowLocationModal(true)}
-            className="flex items-center space-x-1.5 bg-slate-800/90 hover:bg-slate-700/90 active:scale-95 transition-all px-2.5 py-1.5 rounded-full border border-slate-700 text-xs shadow-sm cursor-pointer"
-            title="Click to change or refresh your location"
-          >
-            <Navigation
-              className={`w-3.5 h-3.5 text-emerald-400 ${
-                isDetecting ? 'animate-spin' : 'animate-pulse'
+          {/* Right Action Cluster: Live GPS Pill + Role Pill */}
+          <div className="flex items-center space-x-1.5 min-w-0">
+            {/* Interactive Location Pill */}
+            <button
+              onClick={() => setShowLocationModal(true)}
+              className="flex items-center space-x-1 bg-slate-800/90 hover:bg-slate-700 active:scale-95 transition-all px-2.5 py-1 rounded-full border border-slate-700/80 text-[10px] text-slate-200 shadow-sm cursor-pointer min-w-0"
+              title="Click to view or calibrate location"
+            >
+              <Navigation
+                className={`w-3 h-3 text-emerald-400 shrink-0 ${
+                  isDetecting ? 'animate-spin' : 'animate-pulse'
+                }`}
+              />
+              <span className="font-bold truncate max-w-[95px] sm:max-w-[125px]">
+                {userLocation.ward || 'My Location'}
+              </span>
+            </button>
+
+            {/* Role & Profile Pill (Click to toggle details/switch) */}
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all active:scale-95 cursor-pointer shrink-0 ${
+                isGov
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
               }`}
-            />
-            <span className="text-slate-200 font-bold text-[10px] truncate max-w-[120px]">
-              {userLocation.ward || 'My Location'}
-            </span>
-          </button>
+              title="Tap to view role details or switch"
+            >
+              <span>{isGov ? '🏛 Authority' : '👤 Citizen'}</span>
+              <ChevronDown className="w-2.5 h-2.5 opacity-70" />
+            </button>
+          </div>
         </div>
 
-        {/* User Identity & Official Badge Bar */}
-        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-          {user ? (
-            <div className="flex items-center space-x-2 truncate">
+        {/* Expandable Role & Account Quick Drawer */}
+        {showProfileMenu && (
+          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="flex items-center space-x-1.5 truncate">
               <span className="text-[11px] font-bold text-slate-200 truncate max-w-[140px]">
-                {user.name}
+                {user ? user.name : (isGov ? 'Municipal Officer' : 'Active Citizen')}
               </span>
-              {user.role === 'authority' ? (
-                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
-                  🏛 Municipal Authority
-                </span>
-              ) : (
-                <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-md">
-                  Citizen
-                </span>
+              <span className="text-[9px] font-mono text-slate-400">
+                {user?.employeeId ? `[${user.employeeId}]` : (user?.ward ? `[${user.ward}]` : '')}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate('/welcome');
+                }}
+                className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
+              >
+                Switch Role
+              </button>
+              {user && (
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                  }}
+                  className="text-[10px] font-bold text-red-400 hover:text-red-300 px-1.5 py-1"
+                >
+                  Sign Out
+                </button>
               )}
             </div>
-          ) : (
-            <div className="flex items-center space-x-1.5">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                Portal:
-              </span>
-              <span className="text-[10px] font-bold text-slate-200">
-                {userRole === 'authority' || userRole === 'admin' ? '🏛 Municipal Authority' : '👤 Citizen'}
-              </span>
-            </div>
-          )}
-
-          {/* Role Switch / Auth Button */}
-          <div className="flex items-center space-x-1.5">
-            <button
-              onClick={() => navigate('/welcome')}
-              className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
-            >
-              Switch Role
-            </button>
-            {user && (
-              <button
-                onClick={logout}
-                className="text-[10px] font-bold text-red-400 hover:text-red-300 px-1.5 py-1"
-                title="Sign Out"
-              >
-                Sign Out
-              </button>
-            )}
           </div>
-        </div>
+        )}
       </header>
 
       {/* Change Location Modal */}
@@ -175,7 +179,7 @@ export const Header = () => {
                   type="text"
                   value={customWard}
                   onChange={(e) => setCustomWard(e.target.value)}
-                  placeholder="e.g., Indiranagar, Bengaluru or Mumbai"
+                  placeholder="e.g., Indiranagar, Bengaluru or Sulur"
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
                   required
                 />
@@ -187,7 +191,7 @@ export const Header = () => {
                   type="text"
                   value={customAddress}
                   onChange={(e) => setCustomAddress(e.target.value)}
-                  placeholder="e.g., 12th Main Road, Near Metro"
+                  placeholder="e.g., KPR mill road, Near Sulur"
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
                 />
               </div>
