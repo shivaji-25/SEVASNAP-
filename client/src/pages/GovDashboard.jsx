@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import * as api from '../services/api';
+import { getStageMetaForCategory, normalizeTimelineEvent } from '../utils/defectWorkflows';
 import {
   ShieldAlert,
   Users,
@@ -112,32 +113,12 @@ export const GovDashboard = () => {
     return matchSearch && matchStatus;
   });
 
-  // 1-Tap Quick Dispatch Action
+  // 1-Tap Quick Dispatch Action with category-tailored problem workflow
   const handleQuickDispatch = async (issue, targetStatus) => {
     setActionPending(issue._id);
     try {
-      const meta = {
-        assigned: {
-          title: 'Squad Dispatched via Gov Dashboard',
-          detail: `Assigned under ${authorityUser.department} field unit.`,
-          badge: 'Crew Dispatched',
-        },
-        in_progress: {
-          title: 'Repair In Progress',
-          detail: 'Field crew active on location with repair equipment.',
-          badge: 'Crew Active',
-        },
-        resolved: {
-          title: 'Resolution Certified by Zonal Officer',
-          detail: `Photographic quality certified by ${authorityUser.name} (${authorityUser.employeeId}).`,
-          badge: 'Official Certified',
-          resolvedBy: `${authorityUser.name} (${authorityUser.employeeId})`,
-          resolvedImageUrl:
-            'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
-        },
-      };
-
-      await advanceIssueStatus(issue._id, targetStatus, meta[targetStatus]);
+      const meta = getStageMetaForCategory(issue.category, targetStatus, authorityUser);
+      await advanceIssueStatus(issue._id, targetStatus, meta);
       fetchStats();
     } catch (err) {
       console.error('Quick dispatch error:', err);
@@ -449,50 +430,41 @@ export const GovDashboard = () => {
           ) : (
             filteredAuditIssues.map((issue) => {
               const isExpanded = expandedAuditId === (issue._id || issue.ticketId);
-              const events = issue.timeline && issue.timeline.length > 0
+              const rawEvents = issue.timeline && issue.timeline.length > 0
                 ? issue.timeline
                 : [
                     {
-                      status: 'reported',
-                      title: 'Complaint Logged & Geotagged',
-                      detail: `Citizens reported issue in ${issue.location?.ward || 'Koramangala Ward'}.`,
+                      ...getStageMetaForCategory(issue.category, 'reported'),
                       time: issue.reportedAt ? new Date(issue.reportedAt).toLocaleString() : 'Recent',
-                      badge: 'CITIZEN_INTAKE',
                     },
                     ...(issue.status === 'assigned' || issue.status === 'in_progress' || issue.status === 'resolved'
                       ? [
                           {
-                            status: 'assigned',
-                            title: 'Zonal Unit Dispatched',
-                            detail: `Routed to ${issue.department || 'Civic Operations'}.`,
+                            ...getStageMetaForCategory(issue.category, 'assigned'),
                             time: issue.assignedAt ? new Date(issue.assignedAt).toLocaleString() : 'In Progress',
-                            badge: 'SQUAD_ROUTED',
                           },
                         ]
                       : []),
                     ...(issue.status === 'in_progress' || issue.status === 'resolved'
                       ? [
                           {
-                            status: 'in_progress',
-                            title: 'Field Operations Active',
-                            detail: 'Crews operating on-site.',
+                            ...getStageMetaForCategory(issue.category, 'in_progress'),
                             time: issue.workStartedAt ? new Date(issue.workStartedAt).toLocaleString() : 'Active',
-                            badge: 'CREW_ACTIVE',
                           },
                         ]
                       : []),
                     ...(issue.status === 'resolved'
                       ? [
                           {
-                            status: 'resolved',
-                            title: 'Resolution Certified by Authority',
+                            ...getStageMetaForCategory(issue.category, 'resolved', authorityUser),
                             detail: issue.resolvedTimeReadable || issue.resolutionNotes || 'Visual proof validated.',
                             time: issue.resolvedAt ? new Date(issue.resolvedAt).toLocaleString() : 'Certified',
-                            badge: 'CLOSED_VERIFIED',
                           },
                         ]
                       : []),
                   ];
+
+              const events = rawEvents.map((evt) => normalizeTimelineEvent(evt, issue.category));
 
               return (
                 <div

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
+import { getStageMetaForCategory, normalizeTimelineEvent } from '../utils/defectWorkflows';
 import {
   CheckCircle2,
   Clock,
@@ -189,35 +190,16 @@ export const Tracking = () => {
   const currentStageIndex = STAGES.findIndex((s) => s.key === activeIssue.status);
   const isResolved = activeIssue.status === 'resolved';
 
-  // Advance lifecycle simulator
+  // Advance lifecycle simulator with category-specific problem metadata
   const handleAdvanceSimulator = async () => {
     if (currentStageIndex >= STAGES.length - 1) return;
     setAdvancing(true);
 
     const nextStage = STAGES[currentStageIndex + 1].key;
-    const metaConfig = {
-      assigned: {
-        title: 'Road Maintenance Unit 4 Dispatched',
-        detail: 'Dispatched Zonal Quick-Response Squad KA-01-EA-1904 to site with hot-mix tarmac.',
-        badge: 'Squad Deployed',
-      },
-      in_progress: {
-        title: 'Engineering Repair on Location',
-        detail: 'Active engineering crew operating high-pressure surface compaction roller.',
-        badge: 'Crew Active',
-      },
-      resolved: {
-        title: 'Photographic Quality Verified',
-        detail: 'Zonal Inspector certified surface integrity & approved before/after visual proof-of-work.',
-        badge: 'Official Certified',
-        resolvedBy: 'Zonal Municipal Inspector',
-        resolvedImageUrl:
-          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
-      },
-    };
+    const metaConfig = getStageMetaForCategory(activeIssue.category, nextStage, user);
 
     try {
-      await advanceIssueStatus(activeIssue._id, nextStage, metaConfig[nextStage]);
+      await advanceIssueStatus(activeIssue._id, nextStage, metaConfig);
     } catch (err) {
       console.error('Lifecycle advance error:', err);
     } finally {
@@ -516,33 +498,36 @@ export const Tracking = () => {
         </div>
 
         <div className="space-y-4 pl-1">
-          {activeIssue.timeline?.map((event, index) => (
-            <div key={index} className="flex space-x-3 relative">
-              {/* Connector line */}
-              {index !== activeIssue.timeline.length - 1 && (
-                <div className="absolute left-[11px] top-6 bottom-[-16px] w-[2px] bg-slate-200" />
-              )}
-
-              {/* Dot */}
-              <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center flex-shrink-0 z-10 shadow-sm">
-                <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-
-              {/* Event Content */}
-              <div className="flex-1 pb-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-slate-900">{event.title}</h4>
-                  <span className="text-[10px] text-slate-400 font-mono">{event.time}</span>
-                </div>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{event.detail}</p>
-                {event.badge && (
-                  <span className="inline-block mt-1 text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
-                    {event.badge}
-                  </span>
+          {activeIssue.timeline?.map((rawEvent, index) => {
+            const event = normalizeTimelineEvent(rawEvent, activeIssue.category);
+            return (
+              <div key={index} className="flex space-x-3 relative">
+                {/* Connector line */}
+                {index !== activeIssue.timeline.length - 1 && (
+                  <div className="absolute left-[11px] top-6 bottom-[-16px] w-[2px] bg-slate-200" />
                 )}
+
+                {/* Dot */}
+                <div className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center flex-shrink-0 z-10 shadow-sm">
+                  <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+
+                {/* Event Content */}
+                <div className="flex-1 pb-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-900">{event.title}</h4>
+                    <span className="text-[10px] text-slate-400 font-mono">{event.time}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{event.detail}</p>
+                  {event.badge && (
+                    <span className="inline-block mt-1 text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                      {event.badge}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -447,29 +447,111 @@ exports.updateStatus = async (req, res) => {
       }
     }
 
-    const defaultTimelineMeta = {
-      assigned: {
-        title: title || 'Field Squad Dispatched',
-        detail: detail || 'Assigned to Ward Quick-Response Engineering Squad.',
-        badge: badge || 'Crew Assigned',
+    const CATEGORY_STATUS_META = {
+      water_leak: {
+        assigned: {
+          title: 'BWSSB Hydraulic Maintenance Squad Dispatched',
+          detail: 'Dispatched Hydraulic Valve Unit with pipeline isolation key and replacement ductile iron sleeves.',
+          badge: 'Squad Dispatched',
+        },
+        in_progress: {
+          title: 'Main Valve Isolation & Pipeline Repair Active',
+          detail: 'Engineering crew isolated distribution sluice valve and mounted heavy-duty repair sleeve with pressure testing.',
+          badge: 'Active Repair',
+        },
+        resolved: {
+          title: 'Water Pressure Restored & Zero-Leakage Certified',
+          detail: 'BWSSB Zonal Engineer tested 4.2 bar mainline pressure, certified leak stoppage, and backfilled roadway trench.',
+          badge: 'BWSSB Certified',
+          resolvedImageUrl: 'https://images.unsplash.com/photo-1574482620826-40685ca5ebd2?auto=format&fit=crop&w=800&q=80',
+        },
       },
-      in_progress: {
-        title: title || 'Repair In Progress',
-        detail: detail || 'Field crew deployed on location with repair equipment.',
-        badge: badge || 'Crew Active',
+      garbage: {
+        assigned: {
+          title: 'Sanitation Flying Squad & Compactor Dispatched',
+          detail: 'Dispatched SWM Zonal Sanitation Crew with 4-ton compactor truck and mechanical loader.',
+          badge: 'Squad Dispatched',
+        },
+        in_progress: {
+          title: 'Waste Clearance & Anti-Bacterial Disinfection Active',
+          detail: 'Sanitation crew cleared accumulated black-spot waste pile and disinfected surrounding footway with bleaching powder.',
+          badge: 'Clearing Active',
+        },
+        resolved: {
+          title: 'Complete Site Clearance & Cleanliness Certified',
+          detail: 'BBMP Solid Waste Health Inspector verified footway clearance; black-spot eliminated and declared zero-waste compliance.',
+          badge: 'Health Certified',
+          resolvedImageUrl: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80',
+        },
       },
-      resolved: {
-        title: title || 'Work Finished & Resolution Certified',
-        detail: detail || 'Civic defect resolved and verified with after-repair photographic evidence.',
-        badge: badge || 'Official Certified',
+      streetlight: {
+        assigned: {
+          title: 'BESCOM Electrical Maintenance Squad Dispatched',
+          detail: 'Dispatched Power Infrastructure Crew with hydraulic cherry-picker and LED luminaire units.',
+          badge: 'Squad Dispatched',
+        },
+        in_progress: {
+          title: 'Pole Cable Re-wiring & Luminaire Replacement Active',
+          detail: 'Electrical technicians replaced faulted ballast, repaired feeder cables, and mounted 120W LED fixture.',
+          badge: 'Repair Active',
+        },
+        resolved: {
+          title: 'Luminance & Circuit Continuity Certified',
+          detail: 'BESCOM Electrical Inspector performed lux-level photometric test; illumination restored to full safety compliance.',
+          badge: 'BESCOM Certified',
+          resolvedImageUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80',
+        },
+      },
+      drainage: {
+        assigned: {
+          title: 'Stormwater Desilting & Super-Sucker Unit Dispatched',
+          detail: 'Dispatched SWD Emergency Crew equipped with high-volume jetting and vacuum desilting vehicle.',
+          badge: 'Squad Dispatched',
+        },
+        in_progress: {
+          title: 'Hydro-Jetting & Conduit Desilting Active',
+          detail: 'Crew operating high-pressure water jetting to pulverize solid silt blockage and unblock stormwater conduit.',
+          badge: 'Desilting Active',
+        },
+        resolved: {
+          title: 'Free-Flow Gravity Drainage Certified',
+          detail: 'Zonal Stormwater Engineer verified unrestricted gravity drainage flow and re-seated safety surface grate.',
+          badge: 'SWD Certified',
+          resolvedImageUrl: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
+        },
+      },
+      pothole: {
+        assigned: {
+          title: 'Road Maintenance Quick-Patch Squad Dispatched',
+          detail: 'Dispatched Zonal Quick-Response Road Crew to site with hot-mix asphalt batch.',
+          badge: 'Squad Dispatched',
+        },
+        in_progress: {
+          title: 'Asphalt Tarmac Compaction on Location',
+          detail: 'Active engineering crew squaring crater edges, applying tack coat, and operating vibratory compaction roller.',
+          badge: 'Crew Active',
+        },
+        resolved: {
+          title: 'Surface Integrity & Level Riding Certified',
+          detail: 'Roads Executive Engineer certified asphalt density, ride quality, and approved before/after visual proof-of-work.',
+          badge: 'Official Certified',
+          resolvedImageUrl: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
+        },
       },
     };
 
-    const meta = defaultTimelineMeta[status] || {
-      title: title || `Status advanced to ${status}`,
-      detail: detail || '',
-      badge: badge || 'Status Event',
+    const catConfig = CATEGORY_STATUS_META[issue.category] || CATEGORY_STATUS_META.pothole;
+    const catStage = catConfig[status] || {};
+
+    const meta = {
+      title: title || catStage.title || `Status advanced to ${status}`,
+      detail: detail || catStage.detail || '',
+      badge: badge || catStage.badge || 'Status Event',
     };
+
+    if (status === 'resolved' && !issue.resolvedImageUrl) {
+      issue.resolvedImageUrl = resolvedImageUrl || catStage.resolvedImageUrl || 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80';
+    }
 
     issue.timeline.push({
       status,
