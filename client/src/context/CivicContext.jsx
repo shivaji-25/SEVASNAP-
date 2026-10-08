@@ -252,10 +252,27 @@ export const CivicProvider = ({ children }) => {
     });
   }, [userLocation]);
 
-  // Automatically detect user's current GPS location on mount
-  useEffect(() => {
-    detectLocation();
+  // Fetch live issues from backend on mount
+  const refreshIssues = useCallback(async (filters = {}) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getIssues(filters);
+      if (data && data.length > 0) {
+        setIssues(data);
+      }
+    } catch (err) {
+      console.warn('Backend not reachable yet, using offline cached issues:', err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Fetch issues & detect GPS location on mount
+  useEffect(() => {
+    refreshIssues();
+    detectLocation();
+  }, [refreshIssues]);
 
   // AI Triage Runner
   const runAiAnalysis = async (params) => {
