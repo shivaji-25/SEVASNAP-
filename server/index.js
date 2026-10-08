@@ -106,6 +106,7 @@ app.post('/api/ai-triage', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/issues', require('./routes/issueRoutes'));
 app.use('/api/authority', require('./routes/statsRoutes'));
 
