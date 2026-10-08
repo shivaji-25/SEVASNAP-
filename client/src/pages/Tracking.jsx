@@ -227,10 +227,8 @@ export const Tracking = () => {
           <div className="flex items-center justify-between mt-1.5 gap-2">
             <div className="flex items-center text-xs text-slate-600 space-x-1.5 truncate">
               <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span className="truncate font-medium">{activeIssue.location?.ward || 'Ward 151, Koramangala'}</span>
-              <span>•</span>
-              <span className="font-mono text-[11px] text-blue-600 font-semibold shrink-0">
-                {activeIssue.location?.lat ? `${activeIssue.location.lat.toFixed(4)}°, ${activeIssue.location.lng.toFixed(4)}°` : ''}
+              <span className="truncate font-semibold text-slate-800">
+                {activeIssue.location_name || activeIssue.location?.location_name || activeIssue.location?.address || activeIssue.location?.ward || 'Ward 151, Koramangala'}
               </span>
             </div>
             <button
@@ -242,6 +240,19 @@ export const Tracking = () => {
             </button>
           </div>
         </div>
+
+        {/* Consolidated Proximity Duplicates Banner if linked */}
+        {(activeIssue.duplicateCount > 0 || (activeIssue.linkedReports && activeIssue.linkedReports.length > 0)) && (
+          <div className="bg-blue-50/90 border border-blue-200/80 rounded-2xl p-2.5 flex items-center justify-between text-xs text-blue-900 font-bold">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              <span>Proximity Consolidated Ticket</span>
+            </div>
+            <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
+              +{activeIssue.duplicateCount || activeIssue.linkedReports?.length} Citizen Endorsements
+            </span>
+          </div>
+        )}
 
         {/* Dropdown Switcher: only displays citizen's reported issues, or all if admin */}
         {citizenTrackableIssues.length > 1 && (

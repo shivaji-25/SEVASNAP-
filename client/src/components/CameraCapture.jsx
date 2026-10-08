@@ -249,13 +249,13 @@ export const CameraCapture = ({
       {/* Location Status Bar */}
       <div className="bg-slate-900 text-slate-200 px-3 py-2 rounded-2xl flex items-center justify-between text-xs border border-slate-800 shadow-sm">
         <div className="flex items-center space-x-1.5 truncate">
-          <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
           <span className="font-bold truncate text-[11px]">
-            {userLocation?.ward || userLocation?.address || 'GPS Calibrated'}
+            {userLocation?.location_name || userLocation?.address || userLocation?.ward || 'GPS Calibrated'}
           </span>
         </div>
-        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
-          {userLocation?.lat?.toFixed(4)}°, {userLocation?.lng?.toFixed(4)}°
+        <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20 shrink-0">
+          Verified Location
         </span>
       </div>
 

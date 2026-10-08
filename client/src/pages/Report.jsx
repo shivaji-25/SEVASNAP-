@@ -608,8 +608,8 @@ export const Report = () => {
                     <span className="font-medium text-slate-800 text-[11px] truncate block">
                       {userLocation.address || userLocation.ward}
                     </span>
-                    <div className="text-[10px] font-mono text-blue-600 font-bold">
-                      {userLocation.lat?.toFixed(5)}° N, {userLocation.lng?.toFixed(5)}° E
+                    <div className="text-[10px] font-semibold text-blue-700">
+                      {userLocation.location_name || userLocation.address || 'Civic GPS Fixed'}
                     </div>
                   </div>
                 </div>

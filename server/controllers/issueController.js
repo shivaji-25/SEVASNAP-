@@ -1,4 +1,10 @@
 const Issue = require('../models/Issue');
+const {
+  calculateHaversineDistance,
+  reverseGeocode,
+  findProximityDuplicate,
+  sanitizeIssueForClient,
+} = require('../services/geoService');
 
 // Format current time and date as readable string e.g. "03:15 AM, 09 Oct 2026"
 const formatTimeNow = (d = new Date()) => {
@@ -56,7 +62,11 @@ exports.getIssues = async (req, res) => {
     }
 
     const issues = await Issue.find(filter).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, count: issues.length, data: issues });
+    res.status(200).json({
+      success: true,
+      count: issues.length,
+      data: issues.map(sanitizeIssueForClient),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -91,55 +101,48 @@ exports.getNearbyIssues = async (req, res) => {
     }
 
     const issues = await Issue.find(filter);
-    res.status(200).json({ success: true, count: issues.length, data: issues });
+    res.status(200).json({
+      success: true,
+      count: issues.length,
+      data: issues.map(sanitizeIssueForClient),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// POST /api/issues/check-duplicate - 50-meter duplicate detection query using MongoDB 2dsphere
+// POST /api/issues/check-duplicate - Proximity-based duplicate detection (5 to 10-meter radius)
 exports.checkDuplicateIssue = async (req, res) => {
   try {
-    const { lat, lng, category } = req.body;
+    const { lat, lng, category, thresholdMeters = 10 } = req.body;
     if (lat === undefined || lng === undefined) {
       return res.status(400).json({ success: false, message: 'Latitude and Longitude are required for duplicate check' });
     }
 
-    const latitude = parseFloat(lat);
-    const longitude = parseFloat(lng);
+    const { isDuplicate, duplicateIssue, distanceMeters } = await findProximityDuplicate(Issue, {
+      lat,
+      lng,
+      category,
+      thresholdMeters: parseFloat(thresholdMeters) || 10,
+    });
 
-    const filter = {
-      status: { $ne: 'resolved' },
-      geo: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude],
-          },
-          $maxDistance: 50, // 50-meter threshold
-        },
-      },
-    };
-
-    if (category && category !== 'all') {
-      filter.category = category;
-    }
-
-    const duplicate = await Issue.findOne(filter);
-
-    if (duplicate) {
+    if (isDuplicate && duplicateIssue) {
       return res.status(200).json({
         success: true,
         hasDuplicate: true,
-        message: `Existing active report (${duplicate.ticketId}) found within 50 meters.`,
-        duplicateIssue: duplicate,
+        isDuplicate: true,
+        distanceMeters,
+        message: `Existing active report (${duplicateIssue.ticketId}) found within ${distanceMeters.toFixed(1)} meters.`,
+        duplicateIssue: sanitizeIssueForClient(duplicateIssue),
       });
     }
 
     res.status(200).json({
       success: true,
       hasDuplicate: false,
-      message: 'No duplicate reports found within 50 meters.',
+      isDuplicate: false,
+      distanceMeters,
+      message: 'No duplicate active reports found within proximity threshold.',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -159,7 +162,7 @@ exports.getIssueById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Issue not found' });
     }
 
-    res.status(200).json({ success: true, data: issue });
+    res.status(200).json({ success: true, data: sanitizeIssueForClient(issue) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -185,54 +188,14 @@ exports.createIssue = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Defect image is required' });
     }
 
-    const lat = location && location.lat !== undefined ? parseFloat(location.lat) : 12.9352;
-    const lng = location && location.lng !== undefined ? parseFloat(location.lng) : 77.6245;
+    const lat = req.body.lat !== undefined
+      ? parseFloat(req.body.lat)
+      : (location && location.lat !== undefined ? parseFloat(location.lat) : 12.9352);
+    const lng = req.body.lng !== undefined
+      ? parseFloat(req.body.lng)
+      : (location && location.lng !== undefined ? parseFloat(location.lng) : 77.6245);
 
-    // MODULE 9: Duplicate detection query within 50 meters
-    let duplicateWarning = null;
-    try {
-      const existingNearby = await Issue.findOne({
-        status: { $ne: 'resolved' },
-        category: category || 'pothole',
-        geo: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [lng, lat],
-            },
-            $maxDistance: 50, // 50 meters
-          },
-        },
-      });
-
-      if (existingNearby) {
-        duplicateWarning = {
-          hasDuplicate: true,
-          ticketId: existingNearby.ticketId,
-          distance: 'within 50 meters',
-          message: `Active report (${existingNearby.ticketId}) already exists at this location.`,
-        };
-      }
-    } catch (geoErr) {
-      console.warn('Geospatial check note:', geoErr.message);
-    }
-
-    const ticketId = customTicketId || (await generateTicketId());
-    const now = new Date();
-    const timeString = formatTimeNow(now);
-
-    const initialTimeline = [
-      {
-        status: 'reported',
-        title: 'Report Logged & Saved in MongoDB',
-        time: timeString,
-        detail: 'Citizen captured photographic defect evidence; complaint verified and stored in MongoDB database.',
-        badge: 'Citizen Filed',
-        timestamp: now,
-      },
-    ];
-
-    // Intelligent category & municipal department routing
+    // 1. Intelligent category & municipal department routing
     let finalCategory = category || 'pothole';
     const textContext = `${title || ''} ${description || ''} ${categoryName || ''} ${category || ''}`.toLowerCase();
 
@@ -268,6 +231,83 @@ exports.createIssue = async (req, res) => {
     ) {
       finalCategory = 'drainage';
     }
+
+    // 2. CORE TASK 1: Proximity-Based Duplicate Detection (5 to 10-meter radius via Haversine Formula)
+    const { isDuplicate, duplicateIssue, distanceMeters } = await findProximityDuplicate(Issue, {
+      lat,
+      lng,
+      category: finalCategory,
+      thresholdMeters: 10, // 5 to 10-meter proximity threshold
+    });
+
+    // If an existing complaint is found within 5-10 meters, link to original ticket; DO NOT create standalone issue
+    if (isDuplicate && duplicateIssue) {
+      const subReportId = `LINK-${Math.floor(1000 + Math.random() * 9000)}`;
+      const reporterInfo = req.body.reportedBy || {
+        id: req.body.userId || null,
+        name: req.body.userName || 'Citizen Reporter',
+        email: req.body.userEmail || null,
+        phone: req.body.userPhone || null,
+        deviceId: req.body.deviceId || null,
+      };
+
+      duplicateIssue.duplicateCount = (duplicateIssue.duplicateCount || 0) + 1;
+      duplicateIssue.upvotes = (duplicateIssue.upvotes || 0) + 1;
+      duplicateIssue.linkedReports = duplicateIssue.linkedReports || [];
+      duplicateIssue.linkedReports.push({
+        reportId: subReportId,
+        imageUrl,
+        description: description || 'Additional photographic evidence submitted by citizen.',
+        reportedAt: new Date(),
+        distanceMeters: Math.round(distanceMeters * 10) / 10,
+        reportedBy: reporterInfo,
+      });
+
+      const now = new Date();
+      duplicateIssue.timeline.push({
+        status: duplicateIssue.status,
+        title: `Duplicate Complaint Linked (${distanceMeters.toFixed(1)}m)`,
+        time: formatTimeNow(now),
+        detail: `Another citizen reported this same defect within ${distanceMeters.toFixed(1)} meters. Consolidated and endorsed active ticket ${duplicateIssue.ticketId}.`,
+        badge: 'Duplicate Linked',
+        timestamp: now,
+      });
+
+      const updatedDuplicate = await duplicateIssue.save();
+      const clientPayload = sanitizeIssueForClient(updatedDuplicate);
+
+      return res.status(200).json({
+        success: true,
+        isDuplicate: true,
+        ticketId: duplicateIssue.ticketId,
+        originalTicketId: duplicateIssue.ticketId,
+        location_name: clientPayload.location_name,
+        distanceMeters,
+        duplicateDistance: distanceMeters,
+        duplicateCount: duplicateIssue.duplicateCount,
+        message: `Duplicate complaint detected within ${distanceMeters.toFixed(1)}m. Linked to active ticket ${duplicateIssue.ticketId}.`,
+        data: clientPayload,
+        issue: clientPayload,
+      });
+    }
+
+    // 3. CORE TASK 2: Reverse Geocoding Integration (Convert raw coordinates to human-readable location_name)
+    const locationName = await reverseGeocode(lat, lng);
+
+    const ticketId = customTicketId || (await generateTicketId());
+    const now = new Date();
+    const timeString = formatTimeNow(now);
+
+    const initialTimeline = [
+      {
+        status: 'reported',
+        title: 'Report Logged & Saved in MongoDB',
+        time: timeString,
+        detail: 'Citizen captured photographic defect evidence; complaint verified and stored in MongoDB database.',
+        badge: 'Citizen Filed',
+        timestamp: now,
+      },
+    ];
 
     const DEPT_MAP = {
       water_leak: 'Water Supply & Sewerage Board (BWSSB)',
@@ -308,6 +348,7 @@ exports.createIssue = async (req, res) => {
       finalTitle = DEFAULT_TITLES[finalCategory] || `${finalCategoryName} Defect`;
     }
 
+    // Store raw lat/lon securely in database strictly for calculations, but expose location_name
     const newIssue = new Issue({
       ticketId,
       title: finalTitle,
@@ -315,8 +356,10 @@ exports.createIssue = async (req, res) => {
       categoryName: finalCategoryName,
       description: description || '',
       imageUrl,
+      location_name: locationName,
       location: {
-        address: location?.address || 'Koramangala 4th Block, Bengaluru',
+        location_name: locationName,
+        address: location?.address || locationName,
         ward: location?.ward || 'Ward 151, Koramangala',
         lat,
         lng,
@@ -341,12 +384,16 @@ exports.createIssue = async (req, res) => {
     });
 
     const savedIssue = await newIssue.save();
+    const clientPayload = sanitizeIssueForClient(savedIssue);
 
     res.status(201).json({
       success: true,
+      isDuplicate: false,
+      ticketId: clientPayload.ticketId,
+      location_name: clientPayload.location_name,
       message: 'Issue reported successfully',
-      data: savedIssue,
-      duplicateWarning,
+      data: clientPayload,
+      issue: clientPayload,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

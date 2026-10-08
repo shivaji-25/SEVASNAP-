@@ -253,8 +253,8 @@ export const CivicProvider = ({ children }) => {
           addr.road;
         const city = addr.city || addr.town || addr.village || addr.county || 'Bengaluru';
         const wardName = neighbourhood ? `${neighbourhood}, ${city}`.trim() : (city || 'My Location');
-        const formattedAddress = data.display_name || `${lat.toFixed(5)}°, ${lng.toFixed(5)}°`;
-        return { ward: wardName, address: formattedAddress };
+        const formattedAddress = data.display_name || wardName || 'Civic Location';
+        return { ward: wardName, address: formattedAddress, location_name: formattedAddress };
       }
     } catch (err) {
       console.warn('Reverse geocode note:', err.message);
@@ -343,8 +343,9 @@ export const CivicProvider = ({ children }) => {
             const loc = {
               lat,
               lng,
+              location_name: geoInfo?.location_name || geoInfo?.address || 'Current Street Location',
               address: geoInfo?.address || 'Current Street Location',
-              ward: geoInfo?.ward || `Sector (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`,
+              ward: geoInfo?.ward || 'Central Municipal Sector',
               accuracy,
               accuracyMeters: accuracyNum,
             };
@@ -537,18 +538,35 @@ export const CivicProvider = ({ children }) => {
       };
 
       const response = await api.createIssue(payloadWithReporter);
-      const created = response.data;
-      setIssues((prev) => [created, ...prev]);
+      const created = response.data || response.issue;
+      const isDuplicate = response.isDuplicate || false;
+      const originalTicketId = response.originalTicketId || created?.ticketId;
+
+      setIssues((prev) => {
+        if (isDuplicate) {
+          return prev.map((item) =>
+            item.ticketId === created.ticketId ? created : item
+          );
+        }
+        return [created, ...prev.filter((item) => item.ticketId !== created.ticketId)];
+      });
       setCurrentIssue(created);
 
       // Record ticket ID to citizen's personal reported tickets
       setMyReportedTicketIds((prev) => {
-        const next = [created.ticketId, ...prev.filter((id) => id !== created.ticketId)];
+        const targetId = created.ticketId || originalTicketId;
+        const next = [targetId, ...prev.filter((id) => id !== targetId)];
         localStorage.setItem('sevasnap_my_ticket_ids', JSON.stringify(next));
         return next;
       });
 
-      return { success: true, issue: created, duplicateWarning: response.duplicateWarning };
+      return {
+        success: true,
+        issue: created,
+        isDuplicate,
+        originalTicketId,
+        message: response.message,
+      };
     } catch (err) {
       console.warn('Offline report submission fallback:', err.message);
       // Construct fallback offline issue

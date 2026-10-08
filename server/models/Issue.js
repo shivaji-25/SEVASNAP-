@@ -70,7 +70,12 @@ const issueSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    location_name: {
+      type: String,
+      default: '',
+    },
     location: {
+      location_name: { type: String, default: 'Street Location' },
       address: { type: String, default: 'Street Location' },
       ward: { type: String, default: 'Ward 151, Koramangala' },
       lat: { type: Number, required: true },
@@ -153,6 +158,33 @@ const issueSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // Duplicate Tracking & Consolidated Proximity Linkage
+    isDuplicate: {
+      type: Boolean,
+      default: false,
+    },
+    duplicateCount: {
+      type: Number,
+      default: 0,
+    },
+    originalTicketId: {
+      type: String,
+      default: null,
+    },
+    linkedReports: [
+      {
+        reportId: { type: String, default: '' },
+        imageUrl: { type: String, default: '' },
+        description: { type: String, default: '' },
+        reportedAt: { type: Date, default: Date.now },
+        distanceMeters: { type: Number, default: 0 },
+        reportedBy: {
+          id: { type: String, default: null },
+          name: { type: String, default: null },
+          phone: { type: String, default: null },
+        },
+      },
+    ],
     reportedBy: {
       id: { type: String, default: null },
       name: { type: String, default: null },

@@ -240,11 +240,8 @@ export const Map = () => {
                       <Navigation className="w-3.5 h-3.5" />
                       <span>Your Live GPS Location</span>
                     </div>
-                    <p className="text-[11px] font-medium text-slate-700 leading-tight">
-                      {userLocation.address || userLocation.ward}
-                    </p>
-                    <div className="text-[9px] font-mono text-slate-500 bg-slate-100 p-1 rounded">
-                      {userLocation.lat.toFixed(5)}° N, {userLocation.lng.toFixed(5)}° E
+                    <div className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded truncate">
+                      {userLocation.location_name || userLocation.address || 'Verified Geo-Zone'}
                     </div>
                     <div className="text-[9px] text-emerald-600 font-bold">
                       Accuracy: ±{gpsAccuracyMeters}m

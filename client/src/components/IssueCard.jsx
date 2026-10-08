@@ -117,13 +117,11 @@ export const IssueCard = ({ issue }) => {
             </p>
           </div>
 
-          {/* Sub-Meter Precision Telemetry */}
+          {/* Human-Readable Geocoded Location */}
           <div className="flex items-center text-slate-500 text-[11px] space-x-1.5 mt-1 truncate">
             <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-            <span className="truncate font-medium">{issue.location?.ward || 'Ward 151'}</span>
-            <span>•</span>
-            <span className="font-mono text-[10px] text-slate-400">
-              {issue.location?.lat ? `${issue.location.lat.toFixed(4)}°, ${issue.location.lng.toFixed(4)}°` : 'GPS Lock'}
+            <span className="truncate font-semibold text-slate-700">
+              {issue.location_name || issue.location?.location_name || issue.location?.address || issue.location?.ward || 'Street Location'}
             </span>
           </div>
         </div>

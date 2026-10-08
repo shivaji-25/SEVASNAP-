@@ -527,8 +527,8 @@ export const Authority = () => {
                       {currentTicket.categoryName || currentTicket.category}
                     </span>
                   </div>
-                  <span className="text-blue-600 font-mono text-[10px] font-bold">
-                    {currentTicket.location?.lat?.toFixed(5)}° N, {currentTicket.location?.lng?.toFixed(5)}° E
+                  <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-semibold text-[10px] truncate max-w-[200px]">
+                    {currentTicket.location_name || currentTicket.location?.location_name || currentTicket.location?.address || currentTicket.location?.ward || 'Assigned Zone'}
                   </span>
                 </div>
 
