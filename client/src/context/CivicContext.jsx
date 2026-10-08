@@ -167,79 +167,95 @@ export const CivicProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Live or Mock GPS Location (SRS Feature 2: 12.9352° N, 77.6245° E, Ward 151 Koramangala)
-  const [userLocation, setUserLocation] = useState({
-    lat: 12.9352,
-    lng: 77.6245,
-    address: 'Koramangala 4th Block, Bengaluru',
-    ward: 'Ward 151, Koramangala',
-    accuracy: 'Sensor GPS High-Lock',
+  // Live GPS Location with LocalStorage persistence and auto-detection
+  const [userLocation, setUserLocationState] = useState(() => {
+    const saved = localStorage.getItem('sevasnap_user_location');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return {
+      lat: 12.9352,
+      lng: 77.6245,
+      address: 'Current Location',
+      ward: 'Ward 151, Koramangala',
+      accuracy: 'Calibrated Baseline',
+    };
   });
 
-  // Persist issues & upvotes to localStorage for offline resilience (SRS Sec 5.3)
-  useEffect(() => {
-    localStorage.setItem('sevasnap_issues', JSON.stringify(issues));
-  }, [issues]);
+  const setUserLocation = (newLoc) => {
+    setUserLocationState(newLoc);
+    localStorage.setItem('sevasnap_user_location', JSON.stringify(newLoc));
+  };
 
-  useEffect(() => {
-    localStorage.setItem('sevasnap_upvotes', JSON.stringify(upvotedTickets));
-  }, [upvotedTickets]);
-
-  // Fetch live issues from backend on mount
-  const refreshIssues = useCallback(async (filters = {}) => {
-    setLoading(true);
-    setError(null);
+  // Reverse geocoding helper (converts lat/lng to real address and ward)
+  const reverseGeocode = async (lat, lng) => {
     try {
-      const data = await api.getIssues(filters);
-      if (data && data.length > 0) {
-        setIssues(data);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const addr = data.address || {};
+        const neighbourhood =
+          addr.suburb ||
+          addr.neighbourhood ||
+          addr.residential ||
+          addr.city_district ||
+          addr.road;
+        const city = addr.city || addr.town || addr.village || addr.county || 'Bengaluru';
+        const wardName = neighbourhood ? `${neighbourhood}, ${city}`.trim() : (city || 'My Location');
+        const formattedAddress = data.display_name || `${lat.toFixed(5)}°, ${lng.toFixed(5)}°`;
+        return { ward: wardName, address: formattedAddress };
       }
     } catch (err) {
-      console.warn('Backend not reachable yet, using offline cached issues:', err.message);
-    } finally {
-      setLoading(false);
+      console.warn('Reverse geocode note:', err.message);
     }
-  }, []);
+    return null;
+  };
 
-  useEffect(() => {
-    refreshIssues();
-  }, [refreshIssues]);
-
-  // Geolocation detector with 3.5s timeout & calibrated ward fallback (SRS FR-2.1)
+  // Geolocation detector with live browser GPS & reverse geocoding
   const detectLocation = useCallback(() => {
     return new Promise((resolve) => {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
+          async (pos) => {
+            const lat = +pos.coords.latitude.toFixed(5);
+            const lng = +pos.coords.longitude.toFixed(5);
+            const accuracy = `GPS ±${Math.round(pos.coords.accuracy)}m`;
+
+            // Try reverse geocoding to retrieve actual neighborhood and address
+            const geoInfo = await reverseGeocode(lat, lng);
+
             const loc = {
-              lat: +pos.coords.latitude.toFixed(4),
-              lng: +pos.coords.longitude.toFixed(4),
-              address: 'Current Street Location',
-              ward: 'Ward 151, Koramangala',
-              accuracy: `GPS ±${Math.round(pos.coords.accuracy)}m`,
+              lat,
+              lng,
+              address: geoInfo?.address || 'Current Street Location',
+              ward: geoInfo?.ward || `Sector (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`,
+              accuracy,
             };
+
             setUserLocation(loc);
             resolve(loc);
           },
-          () => {
-            // Graceful fallback baseline (SRS FR-2.3)
-            const fallbackLoc = {
-              lat: 12.9352,
-              lng: 77.6245,
-              address: 'Koramangala 4th Block, Bengaluru',
-              ward: 'Ward 151, Koramangala',
-              accuracy: 'Calibrated Ward Baseline',
-            };
-            setUserLocation(fallbackLoc);
-            resolve(fallbackLoc);
+          (err) => {
+            console.warn('Browser GPS notice:', err.message);
+            resolve(userLocation);
           },
-          { timeout: 3500, enableHighAccuracy: true }
+          { timeout: 7000, enableHighAccuracy: true, maximumAge: 10000 }
         );
       } else {
         resolve(userLocation);
       }
     });
   }, [userLocation]);
+
+  // Automatically detect user's current GPS location on mount
+  useEffect(() => {
+    detectLocation();
+  }, []);
 
   // AI Triage Runner
   const runAiAnalysis = async (params) => {
@@ -388,6 +404,7 @@ export const CivicProvider = ({ children }) => {
         currentIssue,
         setCurrentIssue,
         userLocation,
+        setUserLocation,
         detectLocation,
         selectedCategory,
         setSelectedCategory,
