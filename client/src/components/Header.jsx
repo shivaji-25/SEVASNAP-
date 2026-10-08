@@ -117,7 +117,7 @@ export const Header = () => {
 
   return (
     <>
-      <header className="flex-shrink-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 px-3.5 py-2.5 shadow-sm w-full transition-all duration-200">
+      <header className="flex-shrink-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 text-slate-800 px-3.5 py-2.5 shadow-xs w-full transition-all duration-200">
         {/* Compact Single-Row Layout */}
         <div className="flex items-center justify-between gap-2">
           {/* Brand Logo & Name */}
@@ -125,14 +125,14 @@ export const Header = () => {
             onClick={() => navigate('/')}
             className="flex items-center space-x-2 cursor-pointer shrink-0 group select-none"
           >
-            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950 font-black tracking-wider text-xs shadow-sm shadow-emerald-500/20 group-hover:bg-emerald-400 transition-colors">
+            <div className="w-7 h-7 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black tracking-wider text-xs shadow-md shadow-blue-500/25 group-hover:bg-blue-500 transition-colors">
               SS
             </div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-black tracking-tight text-white leading-none">
+              <h1 className="text-sm font-black tracking-tight text-slate-900 leading-none">
                 SEVASNAP
               </h1>
-              <span className="text-[8px] font-bold bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded-full border border-emerald-500/30">
+              <span className="text-[9px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200/70">
                 AI CIVIC
               </span>
             </div>
@@ -143,11 +143,11 @@ export const Header = () => {
             {/* Interactive Location Pill */}
             <button
               onClick={() => setShowLocationModal(true)}
-              className="flex items-center space-x-1 bg-slate-800/90 hover:bg-slate-700 active:scale-95 transition-all px-2.5 py-1 rounded-full border border-slate-700/80 text-[10px] text-slate-200 shadow-sm cursor-pointer min-w-0"
+              className="flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all px-2.5 py-1 rounded-full border border-slate-200 text-[10px] text-slate-700 font-bold shadow-xs cursor-pointer min-w-0"
               title="Click to view or calibrate location"
             >
               <Navigation
-                className={`w-3 h-3 text-emerald-400 shrink-0 ${
+                className={`w-3 h-3 text-blue-600 shrink-0 ${
                   isDetecting ? 'animate-spin' : 'animate-pulse'
                 }`}
               />
@@ -161,8 +161,8 @@ export const Header = () => {
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all active:scale-95 cursor-pointer shrink-0 ${
                 isGov
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
               }`}
               title="Tap to switch between Citizen and Authority Workstation"
             >
@@ -174,9 +174,9 @@ export const Header = () => {
 
         {/* Expandable Role & Account Quick Drawer */}
         {showProfileMenu && (
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="flex items-center space-x-1.5 truncate">
-              <span className="text-[11px] font-bold text-slate-200 truncate max-w-[140px]">
+              <span className="text-[11px] font-bold text-slate-800 truncate max-w-[140px]">
                 {user ? user.name : (isGov ? 'Municipal Officer' : 'Active Citizen')}
               </span>
               <span className="text-[9px] font-mono text-slate-400">
@@ -187,10 +187,10 @@ export const Header = () => {
             <div className="flex items-center space-x-1.5 shrink-0">
               <button
                 onClick={handleQuickToggleRole}
-                className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all active:scale-95 ${
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all active:scale-95 cursor-pointer ${
                   isGov
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                    : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                 }`}
               >
                 {isGov ? 'Switch to 👤 Citizen' : 'Switch to 🏛 Workstation'}
@@ -200,7 +200,7 @@ export const Header = () => {
                   setShowProfileMenu(false);
                   navigate('/welcome');
                 }}
-                className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
               >
                 All Roles
               </button>
@@ -210,7 +210,7 @@ export const Header = () => {
                     setShowProfileMenu(false);
                     logout();
                   }}
-                  className="text-[10px] font-bold text-red-400 hover:text-red-300 px-1.5 py-1"
+                  className="text-[10px] font-bold text-red-500 hover:text-red-600 px-1.5 py-1 cursor-pointer"
                 >
                   Sign Out
                 </button>
@@ -222,16 +222,16 @@ export const Header = () => {
 
       {/* Change Location Modal */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 border border-slate-200 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 text-slate-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Navigation className="w-5 h-5 text-emerald-600" />
+                <Navigation className="w-5 h-5 text-blue-600" />
                 <h3 className="text-base font-black text-slate-900">Current Location</h3>
               </div>
               <button
                 onClick={() => setShowLocationModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -241,7 +241,7 @@ export const Header = () => {
             <button
               onClick={handleDetectGPS}
               disabled={isDetecting}
-              className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl shadow-md shadow-emerald-500/20 flex items-center justify-center space-x-2 active:scale-95 transition-all text-xs cursor-pointer"
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-md shadow-blue-500/25 flex items-center justify-center space-x-2 active:scale-95 transition-all text-xs cursor-pointer"
             >
               <Navigation className={`w-4 h-4 ${isDetecting ? 'animate-spin' : ''}`} />
               <span>{isDetecting ? 'Detecting Real GPS / IP...' : 'Detect Live GPS / Network Location'}</span>

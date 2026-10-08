@@ -372,27 +372,39 @@ export const Report = () => {
     }
   };
 
+  const stageStepIndex = stage === 'capture' ? 1 : stage === 'analyzing' ? 2 : 3;
+
   return (
     <div className="pb-28 pt-2 px-4 max-w-md mx-auto space-y-4">
-      {/* Step Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-slate-900 tracking-tight">
-            {stage === 'capture' && 'Report Civic Issue'}
-            {stage === 'analyzing' && 'AI Sentinel Vision'}
-            {stage === 'verified' && 'AI Verification & Dispatch'}
-          </h2>
-          <p className="text-[11px] text-slate-500">
-            {stage === 'capture' && 'Snap photo & lock GPS coordinates'}
-            {stage === 'analyzing' && 'Scanning defect boundaries & department routing...'}
-            {stage === 'verified' && 'Review AI diagnosis & confirm municipal ticket'}
-          </p>
+      {/* 1. Linear Progress Bar & Step Header (Matching Image 1 & 2 Prototyping Kit) */}
+      <div className="space-y-2 pt-1">
+        {/* Subtle Hairline Progress Bar */}
+        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-600 rounded-full transition-all duration-500"
+            style={{ width: `${(stageStepIndex / 3) * 100}%` }}
+          />
         </div>
 
-        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-emerald-600" />
-          <span>Step {stage === 'capture' ? '1/3' : stage === 'analyzing' ? '2/3' : '3/3'}</span>
-        </span>
+        <div className="flex items-center justify-between pt-1">
+          <div>
+            <h2 className="text-base font-black text-slate-900 tracking-tight">
+              {stage === 'capture' && 'Report Civic Issue'}
+              {stage === 'analyzing' && 'AI Sentinel Vision'}
+              {stage === 'verified' && 'AI Verification & Dispatch'}
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              {stage === 'capture' && 'Snap photo & lock GPS coordinates'}
+              {stage === 'analyzing' && 'Scanning defect boundaries & department routing...'}
+              {stage === 'verified' && 'Review AI diagnosis & confirm municipal ticket'}
+            </p>
+          </div>
+
+          <span className="text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-200/70 flex items-center gap-1 shrink-0">
+            <Sparkles className="w-3 h-3 text-blue-600" />
+            <span>Step {stageStepIndex}/3</span>
+          </span>
+        </div>
       </div>
 
       {/* STAGE 1: CAMERA CAPTURE / GALLERY / PREVIEWS */}
@@ -410,8 +422,8 @@ export const Report = () => {
         <div className="bg-slate-950 text-white rounded-3xl p-6 border-2 border-slate-800 shadow-2xl text-center space-y-4 aspect-[4/3] flex flex-col items-center justify-center relative overflow-hidden">
           {/* Pulsing Scan Rings */}
           <div className="relative">
-            <div className="w-20 h-20 rounded-full border-4 border-emerald-500/30 animate-ping absolute inset-0" />
-            <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/20">
+            <div className="w-20 h-20 rounded-full border-4 border-blue-500/30 animate-ping absolute inset-0" />
+            <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-blue-500 flex items-center justify-center text-blue-400 shadow-xl shadow-blue-500/20">
               <Sparkles className="w-8 h-8 animate-spin" />
             </div>
           </div>
@@ -423,7 +435,7 @@ export const Report = () => {
             </p>
           </div>
 
-          <div className="text-[10px] font-mono text-emerald-400 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-800">
+          <div className="text-[10px] font-mono text-blue-400 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-800">
             TARGET: {userLocation.ward || 'GPS Coordinates Locked'}
           </div>
         </div>
@@ -431,38 +443,45 @@ export const Report = () => {
 
       {/* STAGE 3: AI VERIFICATION CARD & FINAL TICKET CONFIRMATION */}
       {stage === 'verified' && aiAnalysis && (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {/* Confirmed Photo Thumbnail + Category Badge */}
-          <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-950 border border-slate-800 shadow-md">
+          <div className="relative rounded-3xl overflow-hidden aspect-video bg-slate-950 border border-slate-200/90 shadow-md">
             <img
               src={photoData?.previewUrl || activePreset?.image}
               alt="Confirmed Defect"
               className="w-full h-full object-cover"
             />
-            <div className="absolute top-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white border border-slate-700 flex items-center gap-1.5 shadow-lg">
+            <div className="absolute top-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-white border border-slate-700 flex items-center gap-1.5 shadow-lg">
               <span>{SRS_DEMO_PRESETS.find((p) => p.key === aiAnalysis.category)?.icon || '📍'}</span>
               <span>{aiAnalysis.categoryName}</span>
             </div>
 
             <button
               onClick={handleRetakePhoto}
-              className="absolute top-2.5 right-2.5 bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition-all shadow-lg cursor-pointer"
+              className="absolute top-2.5 right-2.5 bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-3 py-1 rounded-full text-[10px] font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition-all shadow-lg cursor-pointer"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Retake</span>
             </button>
           </div>
 
-          {/* Quick Category Override Bar */}
-          <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm space-y-1.5">
+          {/* Category Selector styled in Image 1 & 2 Checklist Style */}
+          <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-emerald-600" />
-                <span>Verify Defect Category</span>
+              <div>
+                <span className="text-xs font-black text-slate-900 block">
+                  Select Defect Category
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  AI detected • Tap below to switch category
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
+                Verified
               </span>
-              <span className="text-[9px] text-emerald-600 font-bold">Tap to adjust</span>
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
+
+            <div className="space-y-2">
               {SRS_DEMO_PRESETS.map((p) => {
                 const isSelected = aiAnalysis.category === p.key;
                 return (
@@ -470,16 +489,36 @@ export const Report = () => {
                     key={p.key}
                     type="button"
                     onClick={() => handleSwitchCategory(p.key)}
-                    className={`flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer text-left ${
                       isSelected
-                        ? 'bg-slate-900 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                        ? 'bg-blue-50/70 border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100/80 text-slate-700 border-slate-200'
                     }`}
                   >
-                    <span className="text-base">{p.icon}</span>
-                    <span className="text-[9px] font-bold mt-0.5 truncate w-full text-center">
-                      {p.label.split('/')[0].trim()}
-                    </span>
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center text-lg shrink-0 shadow-xs">
+                        {p.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <span className={`text-xs block font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-900'}`}>
+                          {p.categoryName}
+                        </span>
+                        <span className="text-[10px] text-slate-500 truncate block">
+                          SLA: {p.sla} • {p.department.split('(')[0].trim()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Circular Blue Checkmark matching Image 1 & 2 */}
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'border-2 border-slate-300 bg-white'
+                      }`}
+                    >
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.8]" />}
+                    </div>
                   </button>
                 );
               })}
@@ -487,20 +526,20 @@ export const Report = () => {
           </div>
 
           {/* AI Diagnostic Results Grid */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-sm space-y-3">
+          <div className="bg-white rounded-3xl border border-slate-200/90 p-4.5 shadow-sm space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-1.5">
-                <Shield className="w-4 h-4 text-emerald-600" />
+                <Shield className="w-4 h-4 text-blue-600" />
                 <span className="text-xs font-black text-slate-900">AI Diagnostic Report</span>
               </div>
-              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200/70">
                 {aiAnalysis.confidence}% Confidence
               </span>
             </div>
 
             {/* Defect Title */}
-            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
                 Defect Title
               </span>
               <span className="font-black text-slate-900 text-xs mt-0.5 block">
@@ -511,7 +550,7 @@ export const Report = () => {
             {/* Severity & SLA metrics */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
                   Severity Rating
                 </span>
                 <span
@@ -528,7 +567,7 @@ export const Report = () => {
               </div>
 
               <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
                   Target Resolution SLA
                 </span>
                 <span className="font-bold text-slate-800 flex items-center gap-1">
@@ -539,9 +578,9 @@ export const Report = () => {
             </div>
 
             {/* AI Damage Assessment Report */}
-            <div className="bg-emerald-50/60 p-2.5 rounded-2xl border border-emerald-200/70 text-xs space-y-1">
-              <div className="flex items-center space-x-1.5 text-emerald-900 font-bold text-[10px] uppercase tracking-wider">
-                <FileText className="w-3.5 h-3.5 text-emerald-700" />
+            <div className="bg-blue-50/60 p-3 rounded-2xl border border-blue-200/70 text-xs space-y-1">
+              <div className="flex items-center space-x-1.5 text-blue-900 font-bold text-[10px] uppercase tracking-wider">
+                <FileText className="w-3.5 h-3.5 text-blue-700" />
                 <span>Damage Assessment Report</span>
               </div>
               <p className="text-[11px] text-slate-800 leading-relaxed font-medium">
@@ -550,12 +589,12 @@ export const Report = () => {
             </div>
 
             {/* Responsible Department & Location */}
-            <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
+            <div className="space-y-2 pt-1 border-t border-slate-100 text-xs">
               <div className="flex items-start space-x-1.5">
                 <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <span className="text-[10px] text-slate-400 block font-bold">Assigned Department</span>
-                  <span className="font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 inline-block text-[11px] mt-0.5">
+                  <span className="font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200/80 inline-block text-[11px] mt-0.5">
                     {aiAnalysis.department}
                   </span>
                 </div>
@@ -563,13 +602,13 @@ export const Report = () => {
 
               <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                 <div className="flex items-start space-x-1.5 min-w-0">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <span className="text-[10px] text-slate-400 block font-bold">Location Verified</span>
                     <span className="font-medium text-slate-800 text-[11px] truncate block">
                       {userLocation.address || userLocation.ward}
                     </span>
-                    <div className="text-[10px] font-mono text-emerald-600 font-bold">
+                    <div className="text-[10px] font-mono text-blue-600 font-bold">
                       {userLocation.lat?.toFixed(5)}° N, {userLocation.lng?.toFixed(5)}° E
                     </div>
                   </div>
@@ -577,7 +616,7 @@ export const Report = () => {
                 <button
                   type="button"
                   onClick={openReportLocModal}
-                  className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-lg border border-slate-300 flex items-center gap-1 active:scale-95 transition-all shrink-0 cursor-pointer"
+                  className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-xl border border-slate-300 flex items-center gap-1 active:scale-95 transition-all shrink-0 cursor-pointer"
                 >
                   <span>Change</span>
                 </button>
@@ -586,7 +625,7 @@ export const Report = () => {
 
             {/* Optional Citizen Notes */}
             <div className="pt-1">
-              <label className="text-[10px] font-bold text-slate-700 block mb-1">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block mb-1">
                 Additional Notes (Optional)
               </label>
               <textarea
@@ -594,24 +633,24 @@ export const Report = () => {
                 onChange={(e) => handleNotesChange(e.target.value)}
                 placeholder="e.g., water repair needed near main intersection..."
                 rows={2}
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900 resize-none"
+                className="w-full text-xs p-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 resize-none font-medium"
               />
             </div>
           </div>
 
           {/* Error Message if submit fails */}
           {errorMessage && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-2.5 rounded-xl text-xs flex items-center space-x-1.5">
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-2xl text-xs flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* Confirm & Create Ticket Primary Action Button */}
+          {/* Confirm & Create Ticket Primary Action Button (Matching Image 1 & 2 "Continue" Button) */}
           <button
             onClick={handleCreateCivicTicket}
             disabled={isSubmittingTicket}
-            className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black rounded-2xl shadow-xl shadow-emerald-500/30 flex items-center justify-center space-x-2 transition-all min-h-[50px] text-xs cursor-pointer"
+            className="w-full py-4 px-5 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/30 flex items-center justify-center space-x-2 transition-all min-h-[52px] text-sm cursor-pointer"
           >
             <Send className="w-4 h-4 stroke-[2.5]" />
             <span>
@@ -623,11 +662,11 @@ export const Report = () => {
 
       {/* Report Location Change Modal */}
       {showLocModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 border border-slate-200 shadow-2xl space-y-3.5 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <MapPin className="w-5 h-5 text-emerald-600" />
+                <MapPin className="w-5 h-5 text-blue-600" />
                 <h3 className="text-base font-black text-slate-900">Set Reporting Location</h3>
               </div>
               <button
@@ -643,7 +682,7 @@ export const Report = () => {
             <button
               type="button"
               onClick={handleDetectGPSInReport}
-              className="w-full py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/25 cursor-pointer transition-all"
             >
               <MapPin className="w-4 h-4" />
               <span>Use My Live GPS Location</span>
@@ -651,7 +690,7 @@ export const Report = () => {
 
             {/* Presets */}
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+              <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
                 Quick Select Location
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -660,7 +699,7 @@ export const Report = () => {
                     key={idx}
                     type="button"
                     onClick={() => handleSelectPreset(p)}
-                    className="text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 px-2 py-1 rounded-lg text-slate-700 transition-all cursor-pointer"
+                    className="text-[10px] font-bold bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 px-2.5 py-1 rounded-xl text-slate-700 transition-all cursor-pointer"
                   >
                     📍 {p.name.split(',')[0]}
                   </button>
@@ -677,7 +716,7 @@ export const Report = () => {
                   value={locWard}
                   onChange={(e) => setLocWard(e.target.value)}
                   placeholder="e.g., Sulur, Coimbatore or Indiranagar"
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900"
                   required
                 />
               </div>
@@ -689,7 +728,7 @@ export const Report = () => {
                   value={locAddress}
                   onChange={(e) => setLocAddress(e.target.value)}
                   placeholder="e.g., Trichy Road, Sulur"
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900"
                 />
               </div>
 
@@ -720,14 +759,14 @@ export const Report = () => {
                 <button
                   type="button"
                   onClick={() => setShowLocModal(false)}
-                  className="flex-1 py-2 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+                  className="flex-1 py-2.5 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-2xl text-xs font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLocating}
-                  className="flex-1 py-2 px-3 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
+                  className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer flex items-center justify-center gap-1 active:scale-98 transition-all"
                 >
                   {isLocating ? 'Calibrating...' : 'Set Location'}
                 </button>
