@@ -33,7 +33,7 @@ const DEPARTMENTS = [
 
 export const GovDashboard = () => {
   const navigate = useNavigate();
-  const { issues, advanceIssueStatus, user, logout } = useCivic();
+  const { issues, advanceIssueStatus, user, logout, refreshIssues } = useCivic();
   const [statsData, setStatsData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionPending, setActionPending] = useState(null);
@@ -64,8 +64,9 @@ export const GovDashboard = () => {
   };
 
   useEffect(() => {
+    if (refreshIssues) refreshIssues();
     fetchStats();
-  }, [issues]);
+  }, [refreshIssues]);
 
   // Key Counts for Authority Dashboard (SRS & Prompt requirements):
   // - Pending Issues

@@ -29,7 +29,7 @@ const MAINTENANCE_UNITS = [
 ];
 
 export const Authority = () => {
-  const { issues, advanceIssueStatus } = useCivic();
+  const { issues, advanceIssueStatus, refreshIssues } = useCivic();
   const [statsData, setStatsData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionPending, setActionPending] = useState(null);
@@ -52,6 +52,11 @@ export const Authority = () => {
       setLoadingStats(false);
     }
   };
+
+  useEffect(() => {
+    refreshIssues?.();
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     fetchStats();

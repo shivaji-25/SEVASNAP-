@@ -4,8 +4,8 @@ import { useCivic } from '../context/CivicContext';
 import { LayoutDashboard, MapPin, Camera, ClipboardList, ShieldAlert, Wrench } from 'lucide-react';
 
 export const Navbar = () => {
-  const { userRole } = useCivic();
-  const isAdmin = userRole === 'admin';
+  const { userRole, user } = useCivic();
+  const isAdmin = userRole === 'admin' || userRole === 'authority' || user?.role === 'authority';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-slate-400 max-w-md mx-auto shadow-2xl">

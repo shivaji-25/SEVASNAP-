@@ -297,6 +297,13 @@ export const CivicProvider = ({ children }) => {
     detectLocation();
   }, [refreshIssues]);
 
+  // Persist issues to localStorage so newly submitted complaints sync immediately across roles
+  useEffect(() => {
+    if (issues && issues.length > 0) {
+      localStorage.setItem('sevasnap_issues', JSON.stringify(issues));
+    }
+  }, [issues]);
+
   // AI Triage Runner
   const runAiAnalysis = async (params) => {
     setLoading(true);
