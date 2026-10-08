@@ -143,7 +143,15 @@ export const CivicProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // User Device ID for upvoting idempotency
+  const [userRole, setUserRoleState] = useState(() => {
+    return localStorage.getItem('sevasnap_user_role') || 'citizen';
+  });
+
+  const setUserRole = (role) => {
+    setUserRoleState(role);
+    localStorage.setItem('sevasnap_user_role', role);
+  };
+
   const [deviceId] = useState(() => {
     let id = localStorage.getItem('sevasnap_device_id');
     if (!id) {
@@ -391,6 +399,8 @@ export const CivicProvider = ({ children }) => {
         toggleUpvote,
         upvotedTickets,
         refreshIssues,
+        userRole,
+        setUserRole,
         loading,
         error,
       }}
