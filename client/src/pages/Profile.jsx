@@ -8,7 +8,6 @@ import {
   ThumbsUp,
   Clock,
   CheckCircle2,
-  Building2,
   LogOut,
   ArrowRight,
   MapPin,
@@ -35,11 +34,6 @@ export const Profile = () => {
 
   const upvotedCount = Object.values(upvotedTickets || {}).filter(Boolean).length;
   const resolvedCount = (myIssues || []).filter((i) => i.status === 'resolved').length;
-
-  const handleSwitchToAuthority = () => {
-    setUserRole('authority');
-    navigate('/authority');
-  };
 
   return (
     <div className="pb-28 pt-2 px-4 max-w-md mx-auto space-y-4">
@@ -105,26 +99,7 @@ export const Profile = () => {
         </div>
       </div>
 
-      {/* 2. Quick Role Switcher Banner: 1-Tap switch to Authority Workstation */}
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between">
-        <div className="space-y-0.5">
-          <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-amber-600" />
-            <span>Are you a Municipal Official?</span>
-          </div>
-          <p className="text-[11px] text-amber-700">
-            Access the BBMP Authority Workstation & dispatch squads.
-          </p>
-        </div>
 
-        <button
-          onClick={handleSwitchToAuthority}
-          className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer"
-        >
-          <span>Workstation</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
 
       {/* 3. My Recent Reported Civic Complaints */}
       <div className="bg-white rounded-3xl border border-slate-200/90 p-4 shadow-sm space-y-3">
