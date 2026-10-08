@@ -81,9 +81,17 @@ const SRS_DEMO_PRESETS = [
   },
 ];
 
+const LOCATION_PRESETS = [
+  { name: 'Sulur, Coimbatore', ward: 'Sulur Town Panchayat', address: 'Trichy Road, Sulur', lat: 11.0267, lng: 77.1264 },
+  { name: 'Indiranagar, Bengaluru', ward: 'Ward 112, Indiranagar', address: '12th Main Road, HAL 2nd Stage', lat: 12.9784, lng: 77.6408 },
+  { name: 'Whitefield, Bengaluru', ward: 'Ward 84, Whitefield', address: 'ITPB Main Road, Whitefield', lat: 12.9698, lng: 77.7499 },
+  { name: 'Koramangala, Bengaluru', ward: 'Ward 151, Koramangala', address: '100ft Road, 4th Block', lat: 12.9352, lng: 77.6245 },
+  { name: 'MG Road / CBD', ward: 'Ward 111, Shantala Nagar', address: 'MG Road Metro Station', lat: 12.9756, lng: 77.6066 },
+];
+
 export const Report = () => {
   const navigate = useNavigate();
-  const { userLocation, detectLocation, submitIssue } = useCivic();
+  const { userLocation, setUserLocation, detectLocation, forwardGeocode, submitIssue } = useCivic();
 
   // Workflow state: 'capture' | 'analyzing' | 'verified'
   const [stage, setStage] = useState('capture');
@@ -98,6 +106,84 @@ export const Report = () => {
   const [customNotes, setCustomNotes] = useState('');
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Location editor state in Report page
+  const [showLocModal, setShowLocModal] = useState(false);
+  const [locWard, setLocWard] = useState(userLocation?.ward || '');
+  const [locAddress, setLocAddress] = useState(userLocation?.address || '');
+  const [locLat, setLocLat] = useState(userLocation?.lat?.toString() || '12.9352');
+  const [locLng, setLocLng] = useState(userLocation?.lng?.toString() || '77.6245');
+  const [isLocating, setIsLocating] = useState(false);
+
+  const openReportLocModal = () => {
+    setLocWard(userLocation?.ward || '');
+    setLocAddress(userLocation?.address || '');
+    setLocLat((userLocation?.lat || 12.9352).toString());
+    setLocLng((userLocation?.lng || 77.6245).toString());
+    setShowLocModal(true);
+  };
+
+  const handleSelectPreset = (p) => {
+    setLocWard(p.ward);
+    setLocAddress(p.address);
+    setLocLat(p.lat.toString());
+    setLocLng(p.lng.toString());
+    setUserLocation({
+      lat: p.lat,
+      lng: p.lng,
+      ward: p.ward,
+      address: p.address,
+      accuracy: 'Preset Calibrated',
+    });
+    setShowLocModal(false);
+  };
+
+  const handleDetectGPSInReport = async () => {
+    try {
+      const loc = await detectLocation();
+      setLocWard(loc.ward);
+      setLocAddress(loc.address);
+      setLocLat(loc.lat.toString());
+      setLocLng(loc.lng.toString());
+      setShowLocModal(false);
+    } catch (err) {
+      console.warn('GPS detect error:', err);
+    }
+  };
+
+  const handleSaveReportLoc = async (e) => {
+    e.preventDefault();
+    setIsLocating(true);
+    try {
+      let finalLat = parseFloat(locLat);
+      let finalLng = parseFloat(locLng);
+
+      const target = `${locWard.trim()} ${locAddress.trim()}`.trim();
+      if (target) {
+        const geo = await forwardGeocode(target);
+        if (geo) {
+          finalLat = geo.lat;
+          finalLng = geo.lng;
+        }
+      }
+
+      if (isNaN(finalLat)) finalLat = userLocation?.lat || 12.9352;
+      if (isNaN(finalLng)) finalLng = userLocation?.lng || 77.6245;
+
+      setUserLocation({
+        lat: +finalLat.toFixed(5),
+        lng: +finalLng.toFixed(5),
+        ward: locWard.trim() || 'Custom Location',
+        address: locAddress.trim() || locWard.trim(),
+        accuracy: 'Custom Calibrated',
+      });
+      setShowLocModal(false);
+    } catch (err) {
+      console.error('Locate error:', err);
+    } finally {
+      setIsLocating(false);
+    }
+  };
 
   // 1. User confirms photo from CameraCapture component
   const handlePhotoConfirmed = async ({ previewUrl, file }) => {
@@ -341,17 +427,26 @@ export const Report = () => {
                 </div>
               </div>
 
-              <div className="flex items-start space-x-1.5 pt-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-bold">Location Verified</span>
-                  <span className="font-medium text-slate-800 text-[11px]">
-                    {userLocation.address || userLocation.ward}
-                  </span>
-                  <div className="text-[10px] font-mono text-slate-400">
-                    {userLocation.lat?.toFixed(5)}° N, {userLocation.lng?.toFixed(5)}° E
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <div className="flex items-start space-x-1.5 min-w-0">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 block font-bold">Location Verified</span>
+                    <span className="font-medium text-slate-800 text-[11px] truncate block">
+                      {userLocation.address || userLocation.ward}
+                    </span>
+                    <div className="text-[10px] font-mono text-emerald-600 font-bold">
+                      {userLocation.lat?.toFixed(5)}° N, {userLocation.lng?.toFixed(5)}° E
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={openReportLocModal}
+                  className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-lg border border-slate-300 flex items-center gap-1 active:scale-95 transition-all shrink-0 cursor-pointer"
+                >
+                  <span>Change</span>
+                </button>
               </div>
             </div>
 
@@ -389,6 +484,122 @@ export const Report = () => {
               {isSubmittingTicket ? 'Creating Ticket & Dispatching...' : 'Confirm & Create Civic Ticket'}
             </span>
           </button>
+        </div>
+      )}
+
+      {/* Report Location Change Modal */}
+      {showLocModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 border border-slate-200 shadow-2xl space-y-3.5 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-base font-black text-slate-900">Set Reporting Location</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* GPS Detection */}
+            <button
+              type="button"
+              onClick={handleDetectGPSInReport}
+              className="w-full py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Use My Live GPS Location</span>
+            </button>
+
+            {/* Presets */}
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                Quick Select Location
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {LOCATION_PRESETS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectPreset(p)}
+                    className="text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 px-2 py-1 rounded-lg text-slate-700 transition-all cursor-pointer"
+                  >
+                    📍 {p.name.split(',')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual Form */}
+            <form onSubmit={handleSaveReportLoc} className="space-y-2.5 pt-1 border-t border-slate-100">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Area / Ward / City</label>
+                <input
+                  type="text"
+                  value={locWard}
+                  onChange={(e) => setLocWard(e.target.value)}
+                  placeholder="e.g., Sulur, Coimbatore or Indiranagar"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Street Address / Landmark</label>
+                <input
+                  type="text"
+                  value={locAddress}
+                  onChange={(e) => setLocAddress(e.target.value)}
+                  placeholder="e.g., Trichy Road, Sulur"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-500">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    value={locLat}
+                    onChange={(e) => setLocLat(e.target.value)}
+                    className="w-full text-xs font-mono p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-500">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    value={locLng}
+                    onChange={(e) => setLocLng(e.target.value)}
+                    className="w-full text-xs font-mono p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowLocModal(false)}
+                  className="flex-1 py-2 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLocating}
+                  className="flex-1 py-2 px-3 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {isLocating ? 'Calibrating...' : 'Set Location'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

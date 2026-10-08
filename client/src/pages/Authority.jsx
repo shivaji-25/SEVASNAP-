@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import * as api from '../services/api';
 import {
@@ -29,7 +30,8 @@ const MAINTENANCE_UNITS = [
 ];
 
 export const Authority = () => {
-  const { issues, advanceIssueStatus, refreshIssues } = useCivic();
+  const navigate = useNavigate();
+  const { issues, advanceIssueStatus, refreshIssues, userRole, setUserRole } = useCivic();
   const [statsData, setStatsData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionPending, setActionPending] = useState(null);
@@ -61,6 +63,18 @@ export const Authority = () => {
   useEffect(() => {
     fetchStats();
   }, [issues]);
+
+  // Keep inspected ticket in sync with context issues
+  useEffect(() => {
+    if (inspectedTicket) {
+      const fresh = issues.find(
+        (i) => (i._id && i._id === inspectedTicket._id) || (i.ticketId && i.ticketId === inspectedTicket.ticketId)
+      );
+      if (fresh && fresh.status !== inspectedTicket.status) {
+        setInspectedTicket(fresh);
+      }
+    }
+  }, [issues, inspectedTicket]);
 
   // Derived counts
   const totalWorkload = issues.length;
@@ -108,6 +122,20 @@ export const Authority = () => {
       };
 
       await advanceIssueStatus(issue._id, targetStatus, meta[targetStatus]);
+      setInspectedTicket((prev) => ({
+        ...prev,
+        status: targetStatus,
+        timeline: [
+          ...(prev?.timeline || []),
+          {
+            status: targetStatus,
+            title: meta[targetStatus]?.title || 'Status Updated',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            detail: meta[targetStatus]?.detail || '',
+            badge: meta[targetStatus]?.badge || 'Updated',
+          },
+        ],
+      }));
       fetchStats();
 
       if (targetStatus === 'resolved') {
@@ -121,28 +149,47 @@ export const Authority = () => {
   };
 
   return (
-    <div className="pb-28 pt-3 px-4 max-w-md mx-auto space-y-4">
+    <div className="pb-28 pt-2 px-4 max-w-md mx-auto space-y-3.5">
+      {/* 0. Operations Console Bar with Quick Switch to Citizen Portal */}
+      <div className="flex items-center justify-between text-[11px] bg-slate-900 text-slate-200 px-3.5 py-2.5 rounded-2xl border border-slate-800 shadow-md">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="font-bold text-white">Authority Workstation</span>
+          <span className="text-slate-400 text-[10px]">({triageQueue.length} Active)</span>
+        </div>
+        <button
+          onClick={() => {
+            setUserRole('citizen');
+            navigate('/');
+          }}
+          className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer text-[11px]"
+        >
+          <span>Citizen Portal</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* 1. Header with Mode Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+          <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
             <ShieldAlert className="w-5 h-5 text-emerald-600" />
-            <span>Authority Workstation</span>
+            <span>BBMP Zonal Operations</span>
           </h2>
-          <p className="text-[11px] text-slate-500">BBMP Zonal Engineering Operations</p>
+          <p className="text-[11px] text-slate-500">Zonal Engineering & Field Dispatch</p>
         </div>
 
         {/* View Switcher: Command Center vs Diagnostic Workstation */}
         <div className="flex bg-slate-200/90 p-0.5 rounded-xl text-xs font-bold">
           <button
             onClick={() => setActiveView('command')}
-            className={`px-2.5 py-1 rounded-lg transition-all ${
+            className={`px-3 py-1.5 rounded-lg transition-all ${
               activeView === 'command'
                 ? 'bg-slate-900 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Command
+            Command ({triageQueue.length})
           </button>
           <button
             onClick={() => {
@@ -151,7 +198,7 @@ export const Authority = () => {
               }
               setActiveView('workstation');
             }}
-            className={`px-2.5 py-1 rounded-lg transition-all ${
+            className={`px-3 py-1.5 rounded-lg transition-all ${
               activeView === 'workstation'
                 ? 'bg-slate-900 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -290,6 +337,10 @@ export const Authority = () => {
                           src={item.imageUrl}
                           alt={item.title}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.src =
+                              'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=400&q=80';
+                          }}
                         />
                       </div>
 
@@ -331,69 +382,128 @@ export const Authority = () => {
       {/* ======================================================== */}
       {/* VIEW B: DIAGNOSTIC & DISPATCH WORKSTATION                */}
       {/* ======================================================== */}
-      {activeView === 'workstation' && (
-        <div className="space-y-4">
-          {!inspectedTicket ? (
+      {activeView === 'workstation' && (() => {
+        const currentTicket = inspectedTicket || triageQueue[0] || issues[0];
+
+        if (!currentTicket) {
+          return (
             <div className="p-8 text-center text-slate-500 bg-white rounded-3xl border border-slate-200">
-              Select an issue from the queue to launch the Diagnostic Workstation.
+              No active civic tickets available to diagnose.
             </div>
-          ) : (
-            <div className="space-y-3.5">
-              {/* Ticket Header & Back Button */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setActiveView('command')}
-                  className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center space-x-1"
-                >
-                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                  <span>Return to Command Queue</span>
-                </button>
+          );
+        }
+
+        return (
+          <div className="space-y-3.5">
+            {/* Horizontal Ticket Carousel / Selector */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                <span>Quick Select Issue ({issues.length} Total)</span>
+                <span className="text-emerald-600 font-mono font-bold">1-Tap Switch</span>
+              </div>
+              <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
+                {issues.map((item) => {
+                  const isSelected =
+                    (currentTicket._id || currentTicket.ticketId) === (item._id || item.ticketId);
+                  return (
+                    <button
+                      key={item._id || item.ticketId}
+                      onClick={() => {
+                        setInspectedTicket(item);
+                        setVerificationSuccess(false);
+                      }}
+                      className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-emerald-400'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="font-mono text-[11px]">{item.ticketId}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                          item.priority === 'High'
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : 'bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {item.category}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ticket Header & Back Button */}
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={() => setActiveView('command')}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center space-x-1 cursor-pointer"
+              >
+                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                <span>Return to Command Queue</span>
+              </button>
+              <div className="flex items-center space-x-1.5">
                 <span className="font-mono text-xs font-bold bg-slate-900 text-emerald-400 px-2.5 py-1 rounded-md">
-                  {inspectedTicket.ticketId}
+                  {currentTicket.ticketId}
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                    currentTicket.status === 'resolved'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {currentTicket.status.toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Side-by-Side Analysis Panel (View B) */}
+            {/* Panel 1: Original Media with Computer-Vision Bounding Overlay */}
+            <div className="bg-slate-950 text-white rounded-3xl p-4 border border-slate-800 shadow-md space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold">
+                  [1] AI COMPUTER-VISION OVERLAY
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono">
+                  {currentTicket.confidence}% Confidence
                 </span>
               </div>
 
-              {/* Side-by-Side Analysis Panel (View B) */}
-              {/* Panel 1: Original Media with Computer-Vision Bounding Overlay */}
-              <div className="bg-slate-950 text-white rounded-3xl p-4 border border-slate-800 shadow-md space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold">
-                    [1] AI COMPUTER-VISION OVERLAY
+              <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-slate-900 border border-slate-700">
+                <img
+                  src={currentTicket.imageUrl}
+                  alt="Citizen Media"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src =
+                      'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80';
+                  }}
+                />
+                {/* Augmented Damage Boundary Box */}
+                <div className="absolute inset-8 border-2 border-red-500 bg-red-500/10 rounded-lg flex items-start justify-between p-1.5 pointer-events-none">
+                  <span className="text-[9px] font-mono font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">
+                    DEFECT_BOUND: {currentTicket.category.toUpperCase()}
                   </span>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono">
-                    {inspectedTicket.confidence}% Confidence
+                  <span className="text-[9px] font-mono font-bold bg-slate-950/80 text-red-400 px-1 py-0.5 rounded">
+                    SEVERITY: {currentTicket.priority}
                   </span>
-                </div>
-
-                <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-slate-900 border border-slate-700">
-                  <img
-                    src={inspectedTicket.imageUrl}
-                    alt="Citizen Media"
-                    className="w-full h-full object-cover"
-                  />
-                  {/* Augmented Damage Boundary Box */}
-                  <div className="absolute inset-8 border-2 border-red-500 bg-red-500/10 rounded-lg flex items-start justify-between p-1.5 pointer-events-none">
-                    <span className="text-[9px] font-mono font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">
-                      DEFECT_BOUND: {inspectedTicket.category.toUpperCase()}
-                    </span>
-                    <span className="text-[9px] font-mono font-bold bg-slate-950/80 text-red-400 px-1 py-0.5 rounded">
-                      SEVERITY: {inspectedTicket.priority}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-[11px] text-slate-300">
-                  <span className="font-bold text-white">Target Authority:</span>{' '}
-                  {inspectedTicket.department}
                 </div>
               </div>
+
+              <div className="text-[11px] text-slate-300">
+                <span className="font-bold text-white">Target Authority:</span>{' '}
+                {currentTicket.department}
+              </div>
+            </div>
 
               {/* Panel 2: Sub-Meter GIS Telemetry & Nearest Maintenance Units */}
               <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-center justify-between text-xs font-black text-slate-900">
                   <span>[2] GIS Sub-Meter Proximity Units</span>
                   <span className="text-emerald-600 font-mono text-[10px]">
-                    {inspectedTicket.location?.lat?.toFixed(5)}° N, {inspectedTicket.location?.lng?.toFixed(5)}° E
+                    {currentTicket.location?.lat?.toFixed(5)}° N, {currentTicket.location?.lng?.toFixed(5)}° E
                   </span>
                 </div>
 
@@ -443,11 +553,11 @@ export const Authority = () => {
                 </div>
 
                 {/* 1-Tap Field Dispatch Action */}
-                {inspectedTicket.status === 'reported' && (
+                {currentTicket.status === 'reported' && (
                   <button
-                    onClick={() => handleDispatchUnit(inspectedTicket, 'assigned')}
-                    disabled={actionPending === inspectedTicket._id}
-                    className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px]"
+                    onClick={() => handleDispatchUnit(currentTicket, 'assigned')}
+                    disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
+                    className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
                   >
                     <Truck className="w-4 h-4" />
                     <span>
@@ -456,22 +566,22 @@ export const Authority = () => {
                   </button>
                 )}
 
-                {inspectedTicket.status === 'assigned' && (
+                {currentTicket.status === 'assigned' && (
                   <button
-                    onClick={() => handleDispatchUnit(inspectedTicket, 'in_progress')}
-                    disabled={actionPending === inspectedTicket._id}
-                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px]"
+                    onClick={() => handleDispatchUnit(currentTicket, 'in_progress')}
+                    disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
+                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
                   >
                     <Wrench className="w-4 h-4" />
                     <span>Mark Unit Active on Site (In Progress)</span>
                   </button>
                 )}
 
-                {inspectedTicket.status === 'in_progress' && (
+                {currentTicket.status === 'in_progress' && (
                   <button
-                    onClick={() => handleDispatchUnit(inspectedTicket, 'resolved')}
-                    disabled={actionPending === inspectedTicket._id}
-                    className="w-full py-3 px-4 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px]"
+                    onClick={() => handleDispatchUnit(currentTicket, 'resolved')}
+                    disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
+                    className="w-full py-3 px-4 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
                   >
                     <CheckCircle className="w-4 h-4" />
                     <span>Verify Field Proof & Certify Closure</span>
@@ -485,9 +595,8 @@ export const Authority = () => {
                 )}
               </div>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+          );
+        })()}
+      </div>
+    );
+  };

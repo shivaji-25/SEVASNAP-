@@ -14,6 +14,7 @@ import { Report } from './pages/Report';
 import { AiAnalysis } from './pages/AiAnalysis';
 import { Tracking } from './pages/Tracking';
 import { Authority } from './pages/Authority';
+import { Profile } from './pages/Profile';
 
 export default function App() {
   return (
@@ -35,7 +36,9 @@ export default function App() {
               <Route path="/report" element={<Report />} />
               <Route path="/ai-analysis" element={<AiAnalysis />} />
               <Route path="/tracking" element={<Tracking />} />
+              <Route path="/activity" element={<Tracking />} />
               <Route path="/authority" element={<Authority />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </main>
 

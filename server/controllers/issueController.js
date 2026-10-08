@@ -259,11 +259,24 @@ exports.createIssue = async (req, res) => {
   }
 };
 
-// 4. PUT /api/issues/:id - Update issue
+// 4. PUT /api/issues/:id - Update issue (by MongoDB _id or Ticket ID)
 exports.updateIssue = async (req, res) => {
   try {
     const { id } = req.params;
-    const issue = await Issue.findByIdAndUpdate(id, req.body, { new: true });
+    const updateData = { ...req.body };
+
+    // If updating location, synchronize GeoJSON point coordinates
+    if (updateData.location && updateData.location.lat != null && updateData.location.lng != null) {
+      updateData.location.type = 'Point';
+      updateData.location.coordinates = [
+        Number(updateData.location.lng),
+        Number(updateData.location.lat),
+      ];
+    }
+
+    const filter = id.startsWith('SEVA-') ? { ticketId: id } : { _id: id };
+    const issue = await Issue.findOneAndUpdate(filter, updateData, { new: true });
+
     if (!issue) {
       return res.status(404).json({ success: false, message: 'Issue not found' });
     }

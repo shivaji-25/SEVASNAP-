@@ -237,7 +237,71 @@ export const CivicProvider = ({ children }) => {
     return null;
   };
 
-  // Geolocation detector with live browser GPS & reverse geocoding
+  // Forward geocoding helper (converts address/city/area text to real lat & lng)
+  const forwardGeocode = async (query) => {
+    if (!query || !query.trim()) return null;
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      if (res.ok) {
+        const list = await res.json();
+        if (list && list.length > 0) {
+          const first = list[0];
+          const lat = +parseFloat(first.lat).toFixed(5);
+          const lng = +parseFloat(first.lon).toFixed(5);
+          const parts = first.display_name.split(',');
+          const ward = (parts[0] + (parts[1] ? `, ${parts[1]}` : '')).trim();
+          return {
+            lat,
+            lng,
+            ward: ward || query.trim(),
+            address: first.display_name,
+            results: list.map((item) => ({
+              lat: +parseFloat(item.lat).toFixed(5),
+              lng: +parseFloat(item.lon).toFixed(5),
+              title: item.display_name.split(',').slice(0, 2).join(', ').trim(),
+              fullAddress: item.display_name,
+            })),
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Forward geocode note:', err.message);
+    }
+    return null;
+  };
+
+  // IP-based Geolocation fallback (useful on desktops or when browser blocks GPS)
+  const detectLocationFromIP = async () => {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.latitude && data.longitude) {
+          const lat = +parseFloat(data.latitude).toFixed(5);
+          const lng = +parseFloat(data.longitude).toFixed(5);
+          const city = data.city || data.region || 'Current Location';
+          const ward = `${city}${data.region ? `, ${data.region}` : ''}`;
+          const address = `${city}, ${data.region || ''}, ${data.postal || ''} ${data.country_name || ''}`.trim();
+          return {
+            lat,
+            lng,
+            ward,
+            address,
+            accuracy: 'Network IP Resolved',
+            accuracyMeters: 500,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('IP location fallback note:', err);
+    }
+    return null;
+  };
+
+  // Geolocation detector with live browser GPS, IP fallback & reverse geocoding
   const detectLocation = useCallback(() => {
     return new Promise((resolve) => {
       if ('geolocation' in navigator) {
@@ -263,14 +327,28 @@ export const CivicProvider = ({ children }) => {
             setUserLocation(loc);
             resolve(loc);
           },
-          (err) => {
-            console.warn('Browser GPS notice:', err.message);
-            resolve(userLocation);
+          async (err) => {
+            console.warn('Browser GPS permission note:', err.message);
+            // Try network IP fallback
+            const ipLoc = await detectLocationFromIP();
+            if (ipLoc) {
+              setUserLocation(ipLoc);
+              resolve(ipLoc);
+            } else {
+              resolve(userLocation);
+            }
           },
           { timeout: 7000, enableHighAccuracy: true, maximumAge: 10000 }
         );
       } else {
-        resolve(userLocation);
+        detectLocationFromIP().then((ipLoc) => {
+          if (ipLoc) {
+            setUserLocation(ipLoc);
+            resolve(ipLoc);
+          } else {
+            resolve(userLocation);
+          }
+        });
       }
     });
   }, [userLocation]);
@@ -444,6 +522,62 @@ export const CivicProvider = ({ children }) => {
     }
   };
 
+  // Update an issue's location (synchronizes locally, in localStorage, and in MongoDB backend)
+  const updateIssueLocation = async (issueIdOrTicket, newLocation) => {
+    try {
+      const locPayload = {
+        lat: Number(newLocation.lat),
+        lng: Number(newLocation.lng),
+        ward: newLocation.ward || 'Custom Calibrated',
+        address: newLocation.address || newLocation.ward || 'Custom Location',
+        distance: newLocation.distance || 'Calibrated Location',
+      };
+
+      // Call backend PUT /api/issues/:id
+      try {
+        await api.updateIssue(issueIdOrTicket, { location: locPayload });
+      } catch (apiErr) {
+        console.warn('Backend update location notice, updating locally:', apiErr.message);
+      }
+
+      // Update state
+      setIssues((prev) => {
+        const next = prev.map((item) => {
+          if (item._id === issueIdOrTicket || item.ticketId === issueIdOrTicket) {
+            return {
+              ...item,
+              location: {
+                ...item.location,
+                ...locPayload,
+              },
+            };
+          }
+          return item;
+        });
+        localStorage.setItem('sevasnap_issues', JSON.stringify(next));
+        return next;
+      });
+
+      if (
+        currentIssue &&
+        (currentIssue._id === issueIdOrTicket || currentIssue.ticketId === issueIdOrTicket)
+      ) {
+        setCurrentIssue((prev) => ({
+          ...prev,
+          location: {
+            ...prev.location,
+            ...locPayload,
+          },
+        }));
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Failed to update issue location:', err);
+      return false;
+    }
+  };
+
   // Auth: Citizen Login & Register
   const loginCitizenUser = async (email, password) => {
     setLoading(true);
@@ -523,6 +657,9 @@ export const CivicProvider = ({ children }) => {
         userLocation,
         setUserLocation,
         detectLocation,
+        forwardGeocode,
+        reverseGeocode,
+        updateIssueLocation,
         selectedCategory,
         setSelectedCategory,
         aiAnalysis,

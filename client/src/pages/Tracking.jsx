@@ -24,17 +24,119 @@ const STAGES = [
 
 export const Tracking = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { issues, currentIssue, setCurrentIssue, advanceIssueStatus } = useCivic();
+  const {
+    issues,
+    currentIssue,
+    setCurrentIssue,
+    advanceIssueStatus,
+    updateIssueLocation,
+    forwardGeocode,
+    detectLocation,
+  } = useCivic();
 
   const ticketParam = searchParams.get('ticket');
   const [advancing, setAdvancing] = useState(false);
   const [activePhotoTab, setActivePhotoTab] = useState('split'); // 'split' | 'before' | 'after'
+
+  // Location editor state
+  const [showLocationEditor, setShowLocationEditor] = useState(false);
+  const [editWard, setEditWard] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
+  const [isUpdatingLoc, setIsUpdatingLoc] = useState(false);
+
+  // Popular Presets
+  const LOCATION_PRESETS = [
+    { name: 'Sulur, Coimbatore', ward: 'Sulur Town Panchayat', address: 'Trichy Road, Sulur', lat: 11.0267, lng: 77.1264 },
+    { name: 'Indiranagar, Bengaluru', ward: 'Ward 112, Indiranagar', address: '12th Main Road, HAL 2nd Stage', lat: 12.9784, lng: 77.6408 },
+    { name: 'Whitefield, Bengaluru', ward: 'Ward 84, Whitefield', address: 'ITPB Main Road, Whitefield', lat: 12.9698, lng: 77.7499 },
+    { name: 'Koramangala, Bengaluru', ward: 'Ward 151, Koramangala', address: '100ft Road, 4th Block', lat: 12.9352, lng: 77.6245 },
+    { name: 'MG Road / CBD', ward: 'Ward 111, Shantala Nagar', address: 'MG Road Metro Station', lat: 12.9756, lng: 77.6066 },
+  ];
 
   // Active tracked issue
   const activeIssue =
     (ticketParam ? issues.find((i) => i.ticketId === ticketParam) : null) ||
     currentIssue ||
     issues[0];
+
+  const openLocationEditor = () => {
+    setEditWard(activeIssue?.location?.ward || 'Sulur, Coimbatore');
+    setEditAddress(activeIssue?.location?.address || 'Main Road');
+    setEditLat((activeIssue?.location?.lat || 11.0267).toString());
+    setEditLng((activeIssue?.location?.lng || 77.1264).toString());
+    setShowLocationEditor(true);
+  };
+
+  const handleSelectPreset = async (p) => {
+    setEditWard(p.ward);
+    setEditAddress(p.address);
+    setEditLat(p.lat.toString());
+    setEditLng(p.lng.toString());
+    if (activeIssue) {
+      await updateIssueLocation(activeIssue.ticketId, {
+        lat: p.lat,
+        lng: p.lng,
+        ward: p.ward,
+        address: p.address,
+      });
+      setShowLocationEditor(false);
+    }
+  };
+
+  const handleSaveLocation = async (e) => {
+    e.preventDefault();
+    setIsUpdatingLoc(true);
+    try {
+      let finalLat = parseFloat(editLat);
+      let finalLng = parseFloat(editLng);
+
+      const searchTarget = `${editWard.trim()} ${editAddress.trim()}`.trim();
+      if (searchTarget) {
+        const geoResult = await forwardGeocode(searchTarget);
+        if (geoResult) {
+          finalLat = geoResult.lat;
+          finalLng = geoResult.lng;
+        }
+      }
+
+      if (isNaN(finalLat)) finalLat = activeIssue?.location?.lat || 12.9352;
+      if (isNaN(finalLng)) finalLng = activeIssue?.location?.lng || 77.6245;
+
+      const newLoc = {
+        lat: +finalLat.toFixed(5),
+        lng: +finalLng.toFixed(5),
+        ward: editWard.trim() || 'Custom Ward',
+        address: editAddress.trim() || editWard.trim(),
+      };
+
+      if (activeIssue) {
+        await updateIssueLocation(activeIssue.ticketId, newLoc);
+      }
+      setShowLocationEditor(false);
+    } catch (err) {
+      console.error('Update ticket location error:', err);
+    } finally {
+      setIsUpdatingLoc(false);
+    }
+  };
+
+  const handleDetectGPS = async () => {
+    try {
+      const loc = await detectLocation();
+      setEditWard(loc.ward);
+      setEditAddress(loc.address);
+      setEditLat(loc.lat.toString());
+      setEditLng(loc.lng.toString());
+      if (activeIssue) {
+        await updateIssueLocation(activeIssue.ticketId, loc);
+        setShowLocationEditor(false);
+      }
+    } catch (err) {
+      console.warn('Detect GPS error:', err);
+    }
+  };
 
   useEffect(() => {
     if (activeIssue && activeIssue.ticketId !== ticketParam) {
@@ -104,13 +206,22 @@ export const Tracking = () => {
 
         <div>
           <h2 className="text-lg font-black tracking-tight">{activeIssue.title}</h2>
-          <div className="flex items-center text-xs text-slate-300 space-x-1.5 mt-1">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{activeIssue.location?.ward || 'Ward 151, Koramangala'}</span>
-            <span>•</span>
-            <span className="font-mono text-[11px] text-slate-400">
-              {activeIssue.location?.lat ? `${activeIssue.location.lat.toFixed(4)}°, ${activeIssue.location.lng.toFixed(4)}°` : ''}
-            </span>
+          <div className="flex items-center justify-between mt-1 gap-2">
+            <div className="flex items-center text-xs text-slate-300 space-x-1.5 truncate">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">{activeIssue.location?.ward || 'Ward 151, Koramangala'}</span>
+              <span>•</span>
+              <span className="font-mono text-[11px] text-emerald-400 shrink-0">
+                {activeIssue.location?.lat ? `${activeIssue.location.lat.toFixed(4)}°, ${activeIssue.location.lng.toFixed(4)}°` : ''}
+              </span>
+            </div>
+            <button
+              onClick={openLocationEditor}
+              className="text-[10px] bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-slate-700 hover:border-emerald-500/50 flex items-center gap-1 active:scale-95 transition-all shrink-0 cursor-pointer"
+              title="Change Ticket Location"
+            >
+              <span>Change</span>
+            </button>
           </div>
         </div>
 
@@ -132,6 +243,125 @@ export const Tracking = () => {
           </select>
         </div>
       </div>
+
+      {/* Ticket Location Calibration Modal */}
+      {showLocationEditor && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 border border-slate-200 shadow-2xl space-y-3.5 text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-base font-black text-slate-900">Change Ticket Location</h3>
+              </div>
+              <button
+                onClick={() => setShowLocationEditor(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Update GPS coordinates for ticket <span className="font-mono font-bold text-slate-900">{activeIssue.ticketId}</span>.
+            </p>
+
+            {/* 1-Tap Detect GPS */}
+            <button
+              type="button"
+              onClick={handleDetectGPS}
+              className="w-full py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Use My Live GPS Location</span>
+            </button>
+
+            {/* Presets */}
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                Quick Select Place
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {LOCATION_PRESETS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectPreset(p)}
+                    className="text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 px-2 py-1 rounded-lg text-slate-700 transition-all cursor-pointer"
+                  >
+                    📍 {p.name.split(',')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Location Form */}
+            <form onSubmit={handleSaveLocation} className="space-y-2.5 pt-1 border-t border-slate-100">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Area / Ward / City</label>
+                <input
+                  type="text"
+                  value={editWard}
+                  onChange={(e) => setEditWard(e.target.value)}
+                  placeholder="e.g. Sulur, Coimbatore or Indiranagar"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">Street / Landmark</label>
+                <input
+                  type="text"
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  placeholder="e.g. Trichy Road, Sulur"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-500">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    value={editLat}
+                    onChange={(e) => setEditLat(e.target.value)}
+                    className="w-full text-xs font-mono p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-mono font-bold text-slate-500">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    value={editLng}
+                    onChange={(e) => setEditLng(e.target.value)}
+                    className="w-full text-xs font-mono p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowLocationEditor(false)}
+                  className="flex-1 py-2 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingLoc}
+                  className="flex-1 py-2 px-3 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {isUpdatingLoc ? 'Updating...' : 'Save Location'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 2. Visual Proof-of-Work Notification Banner (Upon Resolution) */}
       {isResolved && (

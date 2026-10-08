@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
-import { LayoutDashboard, MapPin, Camera, ClipboardList, ShieldAlert, Wrench } from 'lucide-react';
+import { LayoutDashboard, MapPin, Camera, ClipboardList, ShieldAlert, Wrench, User } from 'lucide-react';
 
 export const Navbar = () => {
   const { userRole, user } = useCivic();
@@ -78,9 +78,9 @@ export const Navbar = () => {
           <span className="text-[10px] tracking-tight">Audit Trail</span>
         </NavLink>
 
-        {/* Authority / Dispatch Workstation */}
+        {/* Dynamic: Citizen gets Profile, Authority gets Workstation */}
         <NavLink
-          to="/authority"
+          to={isAdmin ? '/authority' : '/profile'}
           className={({ isActive }) =>
             `flex flex-col items-center justify-center flex-1 h-full min-h-[44px] transition-colors ${
               isActive
@@ -94,10 +94,10 @@ export const Navbar = () => {
           {isAdmin ? (
             <Wrench className="w-5 h-5 mb-0.5" />
           ) : (
-            <ShieldAlert className="w-5 h-5 mb-0.5" />
+            <User className="w-5 h-5 mb-0.5" />
           )}
           <span className="text-[10px] tracking-tight">
-            {isAdmin ? 'Workstation' : 'Authority'}
+            {isAdmin ? 'Workstation' : 'Profile'}
           </span>
         </NavLink>
       </div>
