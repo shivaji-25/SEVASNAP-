@@ -100,6 +100,22 @@ export const getIssues = async (params = {}) => {
   return response.data || [];
 };
 
+export const getNearbyIssues = async (lat, lng, radiusInMeters = 5000, category = 'all') => {
+  const query = new URLSearchParams({ lat, lng, radius: radiusInMeters });
+  if (category && category !== 'all') query.append('category', category);
+  const response = await request(`/issues/nearby?${query.toString()}`);
+  return response.data || [];
+};
+
+export const checkDuplicateIssue = async (lat, lng, category) => {
+  const response = await request('/issues/check-duplicate', {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng, category }),
+  });
+  return response;
+};
+
+
 export const getIssueById = async (id) => {
   const response = await request(`/issues/${id}`);
   return response.data;

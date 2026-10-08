@@ -54,6 +54,91 @@ exports.getIssues = async (req, res) => {
   }
 };
 
+// GET /api/issues/nearby - Dedicated MongoDB 2dsphere Geospatial Search
+exports.getNearbyIssues = async (req, res) => {
+  try {
+    const { lat, lng, radius = 5000, category } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, message: 'Latitude and Longitude query parameters are required' });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const maxDistance = parseFloat(radius);
+
+    const filter = {
+      geo: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: maxDistance,
+        },
+      },
+    };
+
+    if (category && category !== 'all') {
+      filter.category = category;
+    }
+
+    const issues = await Issue.find(filter);
+    res.status(200).json({ success: true, count: issues.length, data: issues });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/issues/check-duplicate - 50-meter duplicate detection query using MongoDB 2dsphere
+exports.checkDuplicateIssue = async (req, res) => {
+  try {
+    const { lat, lng, category } = req.body;
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({ success: false, message: 'Latitude and Longitude are required for duplicate check' });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    const filter = {
+      status: { $ne: 'resolved' },
+      geo: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: 50, // 50-meter threshold
+        },
+      },
+    };
+
+    if (category && category !== 'all') {
+      filter.category = category;
+    }
+
+    const duplicate = await Issue.findOne(filter);
+
+    if (duplicate) {
+      return res.status(200).json({
+        success: true,
+        hasDuplicate: true,
+        message: `Existing active report (${duplicate.ticketId}) found within 50 meters.`,
+        duplicateIssue: duplicate,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      hasDuplicate: false,
+      message: 'No duplicate reports found within 50 meters.',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 // 2. GET /api/issues/:id - Single issue by Mongo ID or Ticket ID (SEVA-xxxx)
 exports.getIssueById = async (req, res) => {
   try {

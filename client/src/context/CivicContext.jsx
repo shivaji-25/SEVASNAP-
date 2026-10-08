@@ -245,7 +245,8 @@ export const CivicProvider = ({ children }) => {
           async (pos) => {
             const lat = +pos.coords.latitude.toFixed(5);
             const lng = +pos.coords.longitude.toFixed(5);
-            const accuracy = `GPS ±${Math.round(pos.coords.accuracy)}m`;
+            const accuracyNum = Math.round(pos.coords.accuracy) || 30;
+            const accuracy = `GPS ±${accuracyNum}m`;
 
             // Try reverse geocoding to retrieve actual neighborhood and address
             const geoInfo = await reverseGeocode(lat, lng);
@@ -256,6 +257,7 @@ export const CivicProvider = ({ children }) => {
               address: geoInfo?.address || 'Current Street Location',
               ward: geoInfo?.ward || `Sector (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`,
               accuracy,
+              accuracyMeters: accuracyNum,
             };
 
             setUserLocation(loc);
