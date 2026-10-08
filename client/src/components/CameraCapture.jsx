@@ -21,6 +21,7 @@ export const CameraCapture = ({
   onSelectPreset,
 }) => {
   const [streamActive, setStreamActive] = useState(false);
+  const [mediaStream, setMediaStream] = useState(null); // Stream in state for guaranteed React re-render
   const [capturedImage, setCapturedImage] = useState(null); // Data URL or URL
   const [capturedFile, setCapturedFile] = useState(null); // File object for Multer upload
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' or 'user'
@@ -40,11 +41,26 @@ export const CameraCapture = ({
     };
   }, []);
 
+  // Ensure video element srcObject is bound and playing whenever mediaStream changes
+  useEffect(() => {
+    if (videoRef.current && mediaStream && streamActive) {
+      videoRef.current.srcObject = mediaStream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current?.play().catch((e) => console.warn('Video play on metadata:', e));
+      };
+      videoRef.current.play().catch((e) => console.warn('Video play immediate:', e));
+    }
+  }, [mediaStream, streamActive]);
+
   // Stop live video stream
   const stopLiveStream = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    }
+    setMediaStream(null);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setStreamActive(false);
   };
@@ -75,9 +91,13 @@ export const CameraCapture = ({
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+      setMediaStream(stream);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch((e) => console.warn('Autoplay error:', e));
+        };
         videoRef.current.play().catch((playErr) => console.warn('Autoplay note:', playErr));
       }
 
@@ -128,11 +148,13 @@ export const CameraCapture = ({
 
     const video = videoRef.current;
     const canvas = canvasRef.current || document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
 
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, width, height);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedImage(dataUrl);
@@ -253,16 +275,14 @@ export const CameraCapture = ({
           <div className="absolute inset-0 bg-white z-50 transition-opacity duration-150 pointer-events-none" />
         )}
 
-        {/* 1. Live Video Stream */}
-        {streamActive && (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-        )}
+        {/* 1. Live Video Stream: ALWAYS rendered in DOM so ref is NEVER null */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`w-full h-full object-cover ${streamActive ? 'block' : 'hidden'}`}
+        />
 
         {/* 2. Captured Image Preview */}
         {!streamActive && capturedImage && (

@@ -83,8 +83,8 @@ const INITIAL_DEMO_ISSUES = [
     category: 'water_leak',
     categoryName: 'Water Pipeline Burst',
     description: 'Fresh potable drinking water main ruptured under footway with surface erosion.',
-    imageUrl: 'https://images.unsplash.com/photo-1585687508687-32127fa289fe?auto=format&fit=crop&w=800&q=80',
-    resolvedImageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80',
+    resolvedImageUrl: 'https://images.unsplash.com/photo-1574482620826-40685ca5ebd2?auto=format&fit=crop&w=800&q=80',
     location: {
       address: '7th Main, 1st Block, Koramangala',
       ward: 'Ward 151, Koramangala',
