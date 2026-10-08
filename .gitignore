@@ -4,3 +4,7 @@ node_modules/
 .env.local
 *.log
 .DS_Store
+
+# Windows Directory Junction Links (linked to client and server)
+frontend
+backend

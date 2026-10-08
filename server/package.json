@@ -1,21 +1,22 @@
 {
-  "name": "server",
+  "name": "sevasnap-backend",
   "version": "1.0.0",
-  "description": "SEVASNAP Backend Server",
-  "main": "index.js",
+  "description": "SEVASNAP Civic Intelligence Backend Server",
+  "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
-  "keywords": [],
+  "keywords": ["civic", "pwa", "ai", "reporting", "smartcity"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^18.0.6",
     "express": "^5.2.1",
-    "mongoose": "^9.11.1"
+    "mongoose": "^9.11.1",
+    "multer": "^2.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

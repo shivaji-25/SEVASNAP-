@@ -1,6 +1,6 @@
 const Issue = require('../models/Issue');
 
-// Format current time as readable format e.g. "10:15 AM"
+// Format current time as readable string e.g. "10:15 AM"
 const formatTimeNow = () => {
   return new Date().toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -22,17 +22,18 @@ const generateTicketId = async () => {
   return ticketId;
 };
 
-// 1. Get Issues with filtering, sorting, and nearby radius query
+// 1. GET /api/issues - List with filtering (category, status, department, nearby)
 exports.getIssues = async (req, res) => {
   try {
-    const { category, status, priority, lat, lng, radiusInMeters } = req.query;
+    const { category, status, department, priority, lat, lng, radiusInMeters } = req.query;
     const filter = {};
 
-    if (category) filter.category = category;
-    if (status) filter.status = status;
+    if (category && category !== 'all') filter.category = category;
+    if (status && status !== 'all') filter.status = status;
+    if (department) filter.department = department;
     if (priority) filter.priority = priority;
 
-    // Optional geospatial query
+    // Geospatial nearby filtering (MongoDB 2dsphere index)
     if (lat && lng) {
       const radius = parseFloat(radiusInMeters) || 5000; // default 5km
       filter.geo = {
@@ -47,32 +48,31 @@ exports.getIssues = async (req, res) => {
     }
 
     const issues = await Issue.find(filter).sort({ createdAt: -1 });
-    res.json({ success: true, count: issues.length, data: issues });
+    res.status(200).json({ success: true, count: issues.length, data: issues });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 2. Get Single Issue by ID or Ticket ID
+// 2. GET /api/issues/:id - Single issue by Mongo ID or Ticket ID (SEVA-xxxx)
 exports.getIssueById = async (req, res) => {
   try {
     const { id } = req.params;
-    const issue =
-      id.startsWith('SEVA-')
-        ? await Issue.findOne({ ticketId: id })
-        : await Issue.findById(id);
+    const issue = id.startsWith('SEVA-')
+      ? await Issue.findOne({ ticketId: id })
+      : await Issue.findById(id);
 
     if (!issue) {
       return res.status(404).json({ success: false, message: 'Issue not found' });
     }
 
-    res.json({ success: true, data: issue });
+    res.status(200).json({ success: true, data: issue });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 3. Create Issue with 50m Spatial Redundancy Check (SRS FR-3.3, FR-4.1)
+// 3. POST /api/issues - Create issue with 50-meter duplicate detection (SRS FR-3.3, FR-4.1)
 exports.createIssue = async (req, res) => {
   try {
     const {
@@ -85,31 +85,46 @@ exports.createIssue = async (req, res) => {
       priority,
       confidence,
       department,
+      customTicketId,
     } = req.body;
 
-    if (!location || location.lat === undefined || location.lng === undefined) {
-      return res.status(400).json({ success: false, message: 'Valid location coordinates (lat, lng) are required' });
+    if (!imageUrl) {
+      return res.status(400).json({ success: false, message: 'Defect image is required' });
     }
 
-    const lng = parseFloat(location.lng);
-    const lat = parseFloat(location.lat);
+    const lat = location && location.lat !== undefined ? parseFloat(location.lat) : 12.9352;
+    const lng = location && location.lng !== undefined ? parseFloat(location.lng) : 77.6245;
 
-    // FR-3.3: Spatial redundancy check within 50-meter radius
-    const nearbyDuplicate = await Issue.findOne({
-      status: { $ne: 'resolved' },
-      category: category,
-      geo: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [lng, lat],
+    // MODULE 9: Duplicate detection query within 50 meters
+    let duplicateWarning = null;
+    try {
+      const existingNearby = await Issue.findOne({
+        status: { $ne: 'resolved' },
+        category: category || 'pothole',
+        geo: {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: [lng, lat],
+            },
+            $maxDistance: 50, // 50 meters
           },
-          $maxDistance: 50, // 50 meters
         },
-      },
-    });
+      });
 
-    const ticketId = await generateTicketId();
+      if (existingNearby) {
+        duplicateWarning = {
+          hasDuplicate: true,
+          ticketId: existingNearby.ticketId,
+          distance: 'within 50 meters',
+          message: `Active report (${existingNearby.ticketId}) already exists at this location.`,
+        };
+      }
+    } catch (geoErr) {
+      console.warn('Geospatial check note:', geoErr.message);
+    }
+
+    const ticketId = customTicketId || (await generateTicketId());
 
     const initialTimeline = [
       {
@@ -123,25 +138,25 @@ exports.createIssue = async (req, res) => {
 
     const newIssue = new Issue({
       ticketId,
-      title: title || `${categoryName || 'Civic'} Defect Reported`,
-      category,
-      categoryName: categoryName || category,
+      title: title || `${categoryName || 'Civic'} Defect`,
+      category: category || 'pothole',
+      categoryName: categoryName || 'Pothole',
       description: description || '',
       imageUrl,
       location: {
-        address: location.address || 'Detected Location',
-        ward: location.ward || 'Municipal Ward',
+        address: location?.address || 'Koramangala 4th Block, Bengaluru',
+        ward: location?.ward || 'Ward 151, Koramangala',
         lat,
         lng,
-        distance: location.distance || '',
+        distance: location?.distance || 'Nearby',
       },
       geo: {
         type: 'Point',
         coordinates: [lng, lat],
       },
       priority: priority || 'Medium',
-      confidence: confidence || 95.0,
-      department: department || 'Municipal Corporation',
+      confidence: confidence || 96.5,
+      department: department || 'Roads & Infrastructure Department',
       status: 'reported',
       timeline: initialTimeline,
     });
@@ -150,16 +165,44 @@ exports.createIssue = async (req, res) => {
 
     res.status(201).json({
       success: true,
+      message: 'Issue reported successfully',
       data: savedIssue,
-      isDuplicateWarning: Boolean(nearbyDuplicate),
-      duplicateTicketId: nearbyDuplicate ? nearbyDuplicate.ticketId : null,
+      duplicateWarning,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 4. Update Status Lifecycle (Non-reversible progression: reported -> assigned -> in_progress -> resolved)
+// 4. PUT /api/issues/:id - Update issue
+exports.updateIssue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const issue = await Issue.findByIdAndUpdate(id, req.body, { new: true });
+    if (!issue) {
+      return res.status(404).json({ success: false, message: 'Issue not found' });
+    }
+    res.status(200).json({ success: true, data: issue });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 5. DELETE /api/issues/:id - Delete issue
+exports.deleteIssue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const issue = await Issue.findByIdAndDelete(id);
+    if (!issue) {
+      return res.status(404).json({ success: false, message: 'Issue not found' });
+    }
+    res.status(200).json({ success: true, message: 'Issue removed successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 6. POST /api/issues/:id/status - Status Lifecycle API (Forward only)
 exports.updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -172,7 +215,10 @@ exports.updateStatus = async (req, res) => {
       resolved: [],
     };
 
-    const issue = await Issue.findById(id);
+    const issue = id.startsWith('SEVA-')
+      ? await Issue.findOne({ ticketId: id })
+      : await Issue.findById(id);
+
     if (!issue) {
       return res.status(404).json({ success: false, message: 'Issue not found' });
     }
@@ -183,7 +229,7 @@ exports.updateStatus = async (req, res) => {
     if (!allowedNext.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status transition from '${currentStatus}' to '${status}'. Transitions must be forward-only.`,
+        message: `Invalid status transition from '${currentStatus}' to '${status}'. Status progression must be forward-only.`,
       });
     }
 
@@ -192,8 +238,7 @@ exports.updateStatus = async (req, res) => {
       issue.resolvedImageUrl = resolvedImageUrl;
     }
 
-    // Default timeline details according to SRS
-    const defaultTimelineData = {
+    const defaultTimelineMeta = {
       assigned: {
         title: title || 'Field Squad Dispatched',
         detail: detail || 'Assigned to Ward Quick-Response Engineering Squad.',
@@ -206,40 +251,42 @@ exports.updateStatus = async (req, res) => {
       },
       resolved: {
         title: title || 'Resolution Certified',
-        detail: detail || 'Civic defect resolved and verified with after-repair photographic inspection.',
+        detail: detail || 'Civic defect resolved and verified with after-repair photographic evidence.',
         badge: badge || 'Official Certified',
       },
     };
 
-    const eventConfig = defaultTimelineData[status] || {
-      title: title || `Status updated to ${status}`,
+    const meta = defaultTimelineMeta[status] || {
+      title: title || `Status advanced to ${status}`,
       detail: detail || '',
-      badge: badge || 'Status Update',
+      badge: badge || 'Status Event',
     };
 
     issue.timeline.push({
       status,
-      title: eventConfig.title,
+      title: meta.title,
       time: formatTimeNow(),
-      detail: eventConfig.detail,
-      badge: eventConfig.badge,
+      detail: meta.detail,
+      badge: meta.badge,
     });
 
     const updatedIssue = await issue.save();
-    res.json({ success: true, data: updatedIssue });
+    res.status(200).json({ success: true, data: updatedIssue });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 5. Upvote Issue (SRS FR-7.1, FR-7.2: One vote per user/device)
+// 7. POST /api/issues/:id/upvote - Upvote API
 exports.upvoteIssue = async (req, res) => {
   try {
     const { id } = req.params;
     const { deviceId } = req.body;
-
     const deviceIdentifier = deviceId || req.ip || 'anonymous-device';
-    const issue = await Issue.findById(id);
+
+    const issue = id.startsWith('SEVA-')
+      ? await Issue.findOne({ ticketId: id })
+      : await Issue.findById(id);
 
     if (!issue) {
       return res.status(404).json({ success: false, message: 'Issue not found' });
@@ -248,57 +295,19 @@ exports.upvoteIssue = async (req, res) => {
     const hasUpvoted = issue.upvotedDevices.includes(deviceIdentifier);
 
     if (hasUpvoted) {
-      // Toggle off upvote
       issue.upvotedDevices = issue.upvotedDevices.filter((d) => d !== deviceIdentifier);
       issue.upvotes = Math.max(0, issue.upvotes - 1);
     } else {
-      // Add upvote
       issue.upvotedDevices.push(deviceIdentifier);
       issue.upvotes += 1;
     }
 
     await issue.save();
 
-    res.json({
+    res.status(200).json({
       success: true,
       upvotes: issue.upvotes,
       hasUpvoted: !hasUpvoted,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// 6. 50-meter Duplicate Detection Query (SRS FR-3.3)
-exports.checkDuplicate = async (req, res) => {
-  try {
-    const { lat, lng, category } = req.query;
-
-    if (!lat || !lng) {
-      return res.status(400).json({ success: false, message: 'lat and lng parameters are required' });
-    }
-
-    const filter = {
-      status: { $ne: 'resolved' },
-      geo: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)],
-          },
-          $maxDistance: 50, // 50m
-        },
-      },
-    };
-
-    if (category) filter.category = category;
-
-    const duplicate = await Issue.findOne(filter);
-
-    res.json({
-      success: true,
-      hasDuplicate: Boolean(duplicate),
-      duplicateIssue: duplicate || null,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

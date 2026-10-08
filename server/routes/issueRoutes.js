@@ -4,22 +4,20 @@ const {
   getIssues,
   getIssueById,
   createIssue,
+  updateIssue,
+  deleteIssue,
   updateStatus,
   upvoteIssue,
-  checkDuplicate,
 } = require('../controllers/issueController');
 
-// 50-meter duplicate detection query
-router.get('/check-duplicate', checkDuplicate);
-
-// Issues CRUD & queries
+// CRUD endpoints (SRS Module 4)
 router.route('/').get(getIssues).post(createIssue);
-router.route('/:id').get(getIssueById);
+router.route('/:id').get(getIssueById).put(updateIssue).delete(deleteIssue);
 
-// Status transition (non-reversible forward progression)
-router.patch('/:id/status', updateStatus);
+// Status Lifecycle API (SRS Module 5)
+router.post('/:id/status', updateStatus);
 
-// Upvote endorsement
+// Upvote API (SRS Module 6)
 router.post('/:id/upvote', upvoteIssue);
 
 module.exports = router;
