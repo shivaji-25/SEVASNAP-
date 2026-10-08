@@ -75,7 +75,9 @@ export const Navbar = () => {
           }
         >
           <ClipboardList className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] tracking-tight">Audit Trail</span>
+          <span className="text-[10px] tracking-tight">
+            {isAdmin ? 'Audit Log' : 'Track Issue'}
+          </span>
         </NavLink>
 
         {/* Dynamic: Citizen gets Profile, Authority gets Workstation */}

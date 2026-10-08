@@ -32,7 +32,11 @@ export const Tracking = () => {
     updateIssueLocation,
     forwardGeocode,
     detectLocation,
+    userRole,
+    user,
   } = useCivic();
+
+  const isAdmin = userRole === 'admin' || userRole === 'authority' || user?.role === 'authority';
 
   const ticketParam = searchParams.get('ticket');
   const [advancing, setAdvancing] = useState(false);
@@ -471,12 +475,12 @@ export const Tracking = () => {
         </div>
       </div>
 
-      {/* 5. Chronological Immutable Audit Trail */}
+      {/* 5. Live Resolution Progress & Timeline */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-          <span>Immutable Audit Timeline</span>
-          <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-            AUDIT_VERIFIED
+          <span>Live Resolution Timeline</span>
+          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            REAL-TIME UPDATES
           </span>
         </div>
 
@@ -511,20 +515,25 @@ export const Tracking = () => {
         </div>
       </div>
 
-      {/* 6. Lifecycle Progression Simulator */}
-      {currentStageIndex < STAGES.length - 1 && (
-        <button
-          onClick={handleAdvanceSimulator}
-          disabled={advancing}
-          className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-md flex items-center justify-center space-x-2 active:scale-[0.98] transition-all min-h-[48px] text-xs"
-        >
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span>
-            {advancing
-              ? 'Updating Audit Trail...'
-              : `Advance to "${STAGES[currentStageIndex + 1].label}"`}
-          </span>
-        </button>
+      {/* 6. Official Lifecycle Actions (Visible to Authorities / Admins Only) */}
+      {isAdmin && currentStageIndex < STAGES.length - 1 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 space-y-2">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+            <span>🏛 Authority Action Console</span>
+          </div>
+          <button
+            onClick={handleAdvanceSimulator}
+            disabled={advancing}
+            className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md flex items-center justify-center space-x-2 active:scale-[0.98] transition-all text-xs cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>
+              {advancing
+                ? 'Updating Stage...'
+                : `Official Action: Advance to "${STAGES[currentStageIndex + 1].label}"`}
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );

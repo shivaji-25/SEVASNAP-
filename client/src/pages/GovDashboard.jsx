@@ -20,6 +20,10 @@ import {
   Building2,
   Check,
   Award,
+  Search,
+  Database,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const DEPARTMENTS = [
@@ -37,6 +41,11 @@ export const GovDashboard = () => {
   const [statsData, setStatsData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionPending, setActionPending] = useState(null);
+
+  // Municipal Audit Trail search & status filter
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditStatusFilter, setAuditStatusFilter] = useState('all');
+  const [expandedAuditId, setExpandedAuditId] = useState(null);
 
   // Authority profile defaults if not logged in with custom user
   const authorityUser = user && user.role === 'authority' ? user : {
@@ -85,6 +94,23 @@ export const GovDashboard = () => {
       const severityOrder = { High: 3, Medium: 2, Low: 1 };
       return (severityOrder[b.priority] || 1) - (severityOrder[a.priority] || 1);
     });
+
+  // Filtered issues for Official Municipal Audit Trail
+  const filteredAuditIssues = issues.filter((item) => {
+    const query = auditSearch.toLowerCase().trim();
+    const matchSearch =
+      !query ||
+      item.ticketId?.toLowerCase().includes(query) ||
+      item.title?.toLowerCase().includes(query) ||
+      item.department?.toLowerCase().includes(query) ||
+      item.categoryName?.toLowerCase().includes(query) ||
+      item.location?.ward?.toLowerCase().includes(query);
+
+    const matchStatus =
+      auditStatusFilter === 'all' || item.status === auditStatusFilter;
+
+    return matchSearch && matchStatus;
+  });
 
   // 1-Tap Quick Dispatch Action
   const handleQuickDispatch = async (issue, targetStatus) => {
@@ -345,6 +371,264 @@ export const GovDashboard = () => {
                 </div>
               </div>
             ))
+          )}
+        </div>
+      </div>
+
+      {/* 5. Official Municipal Audit Trail & Compliance Ledger */}
+      <div className="space-y-3 pt-3 border-t border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-slate-900 text-white rounded-lg">
+              <Database className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-sm font-black text-slate-900 tracking-tight">
+                  Official Municipal Audit Trail
+                </h3>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black tracking-widest rounded-full uppercase border border-emerald-300">
+                  AUDIT_VERIFIED
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Immutable chronological event ledger & compliance record
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+              {filteredAuditIssues.length} Records
+            </span>
+          </div>
+        </div>
+
+        {/* Audit Search and Filters */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={auditSearch}
+              onChange={(e) => setAuditSearch(e.target.value)}
+              placeholder="Search Ticket ID (SEVA-...), Ward, Dept, or Issue..."
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0">
+            {[
+              { id: 'all', label: 'All Records' },
+              { id: 'reported', label: 'Reported' },
+              { id: 'assigned', label: 'Dispatched' },
+              { id: 'in_progress', label: 'In Progress' },
+              { id: 'resolved', label: 'Resolved' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setAuditStatusFilter(tab.id)}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all ${
+                  auditStatusFilter === tab.id
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Audit Ledger Records */}
+        <div className="space-y-2">
+          {filteredAuditIssues.length === 0 ? (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-xs text-slate-500 font-medium">
+              No matching records found in municipal audit register.
+            </div>
+          ) : (
+            filteredAuditIssues.map((issue) => {
+              const isExpanded = expandedAuditId === (issue._id || issue.ticketId);
+              const events = issue.timeline && issue.timeline.length > 0
+                ? issue.timeline
+                : [
+                    {
+                      status: 'reported',
+                      title: 'Complaint Logged & Geotagged',
+                      detail: `Citizens reported issue in ${issue.location?.ward || 'Koramangala Ward'}.`,
+                      time: issue.reportedAt ? new Date(issue.reportedAt).toLocaleString() : 'Recent',
+                      badge: 'CITIZEN_INTAKE',
+                    },
+                    ...(issue.status === 'assigned' || issue.status === 'in_progress' || issue.status === 'resolved'
+                      ? [
+                          {
+                            status: 'assigned',
+                            title: 'Zonal Unit Dispatched',
+                            detail: `Routed to ${issue.department || 'Civic Operations'}.`,
+                            time: issue.assignedAt ? new Date(issue.assignedAt).toLocaleString() : 'In Progress',
+                            badge: 'SQUAD_ROUTED',
+                          },
+                        ]
+                      : []),
+                    ...(issue.status === 'in_progress' || issue.status === 'resolved'
+                      ? [
+                          {
+                            status: 'in_progress',
+                            title: 'Field Operations Active',
+                            detail: 'Crews operating on-site.',
+                            time: issue.workStartedAt ? new Date(issue.workStartedAt).toLocaleString() : 'Active',
+                            badge: 'CREW_ACTIVE',
+                          },
+                        ]
+                      : []),
+                    ...(issue.status === 'resolved'
+                      ? [
+                          {
+                            status: 'resolved',
+                            title: 'Resolution Certified by Authority',
+                            detail: issue.resolvedTimeReadable || issue.resolutionNotes || 'Visual proof validated.',
+                            time: issue.resolvedAt ? new Date(issue.resolvedAt).toLocaleString() : 'Certified',
+                            badge: 'CLOSED_VERIFIED',
+                          },
+                        ]
+                      : []),
+                  ];
+
+              return (
+                <div
+                  key={issue._id || issue.ticketId}
+                  className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:border-slate-300 transition-colors"
+                >
+                  <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {issue.ticketId}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            issue.status === 'resolved'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : issue.status === 'in_progress'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : issue.status === 'assigned'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          }`}
+                        >
+                          {issue.status.replace('_', ' ')}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                          {issue.priority} Priority
+                        </span>
+                      </div>
+
+                      <div className="font-bold text-xs text-slate-800">
+                        {issue.title || issue.categoryName || 'Civic Grievance'}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 font-mono">
+                        <span>🏛️ {issue.department}</span>
+                        <span>📍 {issue.location?.ward || 'Bangalore Urban'}</span>
+                        {issue.resolvedTimeReadable && (
+                          <span className="text-emerald-700 font-bold">
+                            ⏱️ Resolved: {issue.resolvedTimeReadable}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <button
+                        onClick={() =>
+                          setExpandedAuditId(
+                            isExpanded ? null : (issue._id || issue.ticketId)
+                          )
+                        }
+                        className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                      >
+                        <span>{isExpanded ? 'Hide Audit Log' : 'Inspect Audit Chain'}</span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => navigate('/authority')}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors"
+                        title="Open in Authority Workstation"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Timeline Chain */}
+                  {isExpanded && (
+                    <div className="bg-slate-50 border-t border-slate-200 p-3 sm:p-4 space-y-3">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                        <span>Chronological Immutable Event History</span>
+                        <span className="font-mono text-[10px] text-slate-400">
+                          {events.length} State Transitions Logged
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 border-l-2 border-slate-300 pl-3 ml-1.5">
+                        {events.map((evt, idx) => (
+                          <div key={idx} className="relative space-y-0.5">
+                            <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-slate-900 border-2 border-white ring-1 ring-slate-300" />
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-bold text-slate-800">
+                                {evt.title}
+                              </span>
+                              {evt.badge && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded font-bold">
+                                  {evt.badge}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono ml-auto">
+                                {evt.time}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600">{evt.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Evidence Photo Thumbnails */}
+                      <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-3">
+                        {issue.imageUrl && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              Intake Photo
+                            </span>
+                            <img
+                              src={issue.imageUrl}
+                              alt="Intake"
+                              className="w-20 h-16 object-cover rounded-lg border border-slate-200 shadow-xs"
+                            />
+                          </div>
+                        )}
+                        {issue.resolvedImageUrl && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                              Proof of Work (Resolved)
+                            </span>
+                            <img
+                              src={issue.resolvedImageUrl}
+                              alt="Proof of Work"
+                              className="w-20 h-16 object-cover rounded-lg border border-emerald-300 shadow-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
