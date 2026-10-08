@@ -238,8 +238,6 @@ export const Report = () => {
         <CameraCapture
           userLocation={userLocation}
           onConfirmPhoto={handlePhotoConfirmed}
-          presets={SRS_DEMO_PRESETS}
-          onSelectPreset={handlePresetSelected}
         />
       )}
 

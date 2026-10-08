@@ -455,29 +455,6 @@ export const CameraCapture = ({
           </button>
         </div>
       )}
-
-      {/* 5 SRS Demo Presets (Pothole, Garbage, Water Leak, Streetlight, Drain) */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-          <span>Or Test with SRS Demo Presets</span>
-          <span className="text-[10px] text-slate-400 font-normal">1-Tap Verification</span>
-        </div>
-        <div className="grid grid-cols-5 gap-1.5">
-          {presets.map((preset) => (
-            <button
-              type="button"
-              key={preset.key}
-              onClick={() => handleSelectPreset(preset)}
-              className="flex flex-col items-center justify-center p-2 rounded-2xl border text-center transition-all bg-white hover:bg-slate-50 border-slate-200 text-slate-700 active:scale-95 shadow-sm cursor-pointer"
-            >
-              <span className="text-base">{preset.icon}</span>
-              <span className="text-[10px] mt-1 leading-tight truncate w-full font-bold">
-                {preset.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
