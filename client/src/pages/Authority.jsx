@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import * as api from '../services/api';
 import {
+  getProximityUnitsForCategory,
+  getStageMetaForCategory,
+  normalizeTimelineEvent,
+} from '../utils/defectWorkflows';
+import {
   ShieldAlert,
   Users,
   Clock,
@@ -23,15 +28,9 @@ import {
   Camera,
 } from 'lucide-react';
 
-const MAINTENANCE_UNITS = [
-  { id: 'unit-4', name: 'Unit 4: Road Patch Tarmac Squad', distance: '180m away', eta: '20 mins', squadLeader: 'Eng. Ramesh K.' },
-  { id: 'unit-2', name: 'Unit 2: BWSSB Rapid Valve Unit', distance: '340m away', eta: '35 mins', squadLeader: 'Eng. Suresh M.' },
-  { id: 'unit-5', name: 'Unit 5: SWM Sanitation Compactor', distance: '500m away', eta: '45 mins', squadLeader: 'Lead Anand V.' },
-];
-
 export const Authority = () => {
   const navigate = useNavigate();
-  const { issues, advanceIssueStatus, refreshIssues, userRole, setUserRole } = useCivic();
+  const { issues, advanceIssueStatus, refreshIssues, userRole, setUserRole, user } = useCivic();
   const [statsData, setStatsData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionPending, setActionPending] = useState(null);
@@ -39,7 +38,7 @@ export const Authority = () => {
   // Active view mode: 'command' (View A: Prioritized Command Center) | 'workstation' (View B: Diagnostic & Dispatch Workstation)
   const [activeView, setActiveView] = useState('command');
   const [inspectedTicket, setInspectedTicket] = useState(null);
-  const [selectedUnit, setSelectedUnit] = useState(MAINTENANCE_UNITS[0]);
+  const [selectedUnit, setSelectedUnit] = useState(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
   // Fetch telemetry from backend
@@ -90,35 +89,47 @@ export const Authority = () => {
       return (severityOrder[b.priority] || 1) - (severityOrder[a.priority] || 1);
     });
 
-  // Open Diagnostic Workstation for an issue
+  // Open Diagnostic Workstation for an issue with problem-tailored proximity units
   const openWorkstation = (issue) => {
     setInspectedTicket(issue);
+    const units = getProximityUnitsForCategory(issue?.category);
+    setSelectedUnit(units[0]);
     setActiveView('workstation');
     setVerificationSuccess(false);
   };
 
-  // 1-Tap Field Dispatch Execution
+  // 1-Tap Field Dispatch Execution with Category-Specific Equipment and Problem Workflow
   const handleDispatchUnit = async (issue, targetStatus) => {
-    setActionPending(issue._id);
+    setActionPending(issue._id || issue.ticketId);
+    const availableUnits = getProximityUnitsForCategory(issue?.category);
+    const unit =
+      selectedUnit && availableUnits.some((u) => u.id === selectedUnit.id)
+        ? selectedUnit
+        : availableUnits[0];
+
     try {
+      const categoryMeta = getStageMetaForCategory(issue.category, targetStatus, user);
+
       const meta = {
         assigned: {
-          title: `Dispatched ${selectedUnit.name}`,
-          detail: `Assigned ${selectedUnit.squadLeader} (${selectedUnit.distance}). Estimated fix time: 2 hrs.`,
-          badge: 'Unit Deployed',
+          ...categoryMeta,
+          title: `Dispatched ${unit.name}`,
+          detail: `Assigned ${unit.squadLeader} (${unit.distance}). Estimated fix time: ${unit.fixTime || '1.5 Hours'}. ${unit.reason || ''}`,
+          badge: 'Squad Deployed',
         },
         in_progress: {
-          title: 'Field Squad on Site',
-          detail: 'Crew actively operating repair machinery at verified coordinates.',
+          ...categoryMeta,
+          title: `${unit.name} on Location`,
+          detail: `Active engineering crew operating ${unit.equipment || 'specialized machinery'} at verified coordinates.`,
           badge: 'Crew Active',
         },
         resolved: {
-          title: 'AI Verification Loop Passed',
-          detail: 'Before/after photographic proof validated. Citizen notified & record certified closed.',
-          badge: 'Official Certified',
-          resolvedBy: selectedUnit.squadLeader || 'Zonal Engineering Unit',
-          resolvedImageUrl:
-            'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
+          ...categoryMeta,
+          title: categoryMeta.title || 'Visual Proof Certified',
+          detail: categoryMeta.detail || 'Before/after photographic proof validated. Citizen notified & record certified closed.',
+          badge: categoryMeta.badge || 'Official Certified',
+          resolvedBy: unit.squadLeader || categoryMeta.resolvedBy || 'Zonal Engineering Unit',
+          resolvedImageUrl: categoryMeta.resolvedImageUrl,
         },
       };
 
@@ -394,13 +405,19 @@ export const Authority = () => {
           );
         }
 
+        const currentUnits = getProximityUnitsForCategory(currentTicket?.category);
+        const activeSelectedUnit =
+          selectedUnit && currentUnits.some((u) => u.id === selectedUnit.id)
+            ? selectedUnit
+            : currentUnits[0];
+
         return (
           <div className="space-y-3.5">
             {/* Horizontal Ticket Carousel / Selector */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1">
                 <span>Quick Select Issue ({issues.length} Total)</span>
-                <span className="text-emerald-600 font-mono font-bold">1-Tap Switch</span>
+                <span className="text-blue-600 font-mono font-bold">1-Tap Switch</span>
               </div>
               <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
                 {issues.map((item) => {
@@ -411,11 +428,13 @@ export const Authority = () => {
                       key={item._id || item.ticketId}
                       onClick={() => {
                         setInspectedTicket(item);
+                        const nextUnits = getProximityUnitsForCategory(item?.category);
+                        setSelectedUnit(nextUnits[0]);
                         setVerificationSuccess(false);
                       }}
-                      className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                      className={`flex items-center space-x-2 px-3 py-1.5 rounded-2xl border text-xs font-bold shrink-0 transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-emerald-400'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 ring-2 ring-blue-500/20'
                           : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                       }`}
                     >
@@ -499,58 +518,84 @@ export const Authority = () => {
               </div>
             </div>
 
-              {/* Panel 2: Sub-Meter GIS Telemetry & Nearest Maintenance Units */}
-              <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm space-y-3">
+              {/* Panel 2: Sub-Meter GIS Telemetry & Nearest Maintenance Units (Category-Specific) */}
+              <div className="bg-white rounded-3xl p-4.5 border border-slate-200/90 shadow-sm space-y-3.5">
                 <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                  <span>[2] GIS Sub-Meter Proximity Units</span>
-                  <span className="text-emerald-600 font-mono text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <span>[2] GIS Sub-Meter Proximity Units</span>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60 uppercase">
+                      {currentTicket.categoryName || currentTicket.category}
+                    </span>
+                  </div>
+                  <span className="text-blue-600 font-mono text-[10px] font-bold">
                     {currentTicket.location?.lat?.toFixed(5)}° N, {currentTicket.location?.lng?.toFixed(5)}° E
                   </span>
                 </div>
 
                 <div className="space-y-2">
-                  {MAINTENANCE_UNITS.map((unit) => (
-                    <div
-                      key={unit.id}
-                      onClick={() => setSelectedUnit(unit)}
-                      className={`p-2.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                        selectedUnit.id === unit.id
-                          ? 'bg-emerald-50 border-emerald-400 shadow-sm'
-                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div>
-                        <div className="font-bold text-xs text-slate-900">{unit.name}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          Lead: {unit.squadLeader} • ETA: {unit.eta}
+                  {currentUnits.map((unit) => {
+                    const isUnitSelected = activeSelectedUnit.id === unit.id;
+                    return (
+                      <div
+                        key={unit.id}
+                        onClick={() => setSelectedUnit(unit)}
+                        className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                          isUnitSelected
+                            ? 'bg-blue-50/80 border-blue-600 ring-2 ring-blue-500/20 shadow-xs'
+                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className={`font-bold text-xs truncate ${isUnitSelected ? 'text-blue-900' : 'text-slate-900'}`}>
+                            {unit.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 truncate font-medium">
+                            Lead: {unit.squadLeader} • ETA: {unit.eta}
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 truncate font-medium">
+                            Specs: {unit.equipment}
+                          </div>
                         </div>
+                        <span
+                          className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl border shrink-0 transition-colors ${
+                            isUnitSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {unit.distance}
+                        </span>
                       </div>
-                      <span className="font-mono text-xs font-bold text-emerald-700 bg-white px-2 py-1 rounded-lg border border-slate-200">
-                        {unit.distance}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Panel 3: Automated Action Recommendation Engine */}
-              <div className="bg-slate-900 text-white rounded-3xl p-4 border border-slate-800 space-y-3">
+              {/* Panel 3: Automated Action Recommendation Engine (Tailored specifically to the problem) */}
+              <div className="bg-white rounded-3xl p-4.5 border border-slate-200/90 shadow-sm space-y-3.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono text-amber-400 font-black uppercase">
+                  <span className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
                     [3] ACTION RECOMMENDATION ENGINE
                   </span>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200/70 px-2.5 py-0.5 rounded-full font-bold">
                     RECOMMENDED
                   </span>
                 </div>
 
-                <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 space-y-1">
-                  <div className="font-bold text-xs text-amber-300">
-                    Deploy {selectedUnit.name}
+                <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200/80 space-y-1.5">
+                  <div className="font-bold text-xs text-blue-900">
+                    Deploy {activeSelectedUnit.name}
                   </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Estimated fix time: <span className="font-bold text-white">2.0 Hours</span>. Unit is closest with matched equipment specs.
+                  <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                    Estimated fix time:{' '}
+                    <span className="font-bold text-slate-900">
+                      {activeSelectedUnit.fixTime || '1.5 Hours'}
+                    </span>
+                    . {activeSelectedUnit.reason}
                   </p>
+                  <div className="text-[10px] text-blue-800 bg-white/90 border border-blue-200/60 rounded-lg px-2.5 py-1 font-semibold mt-1 inline-block">
+                    Matched Equipment: {activeSelectedUnit.equipment}
+                  </div>
                 </div>
 
                 {/* 1-Tap Field Dispatch Action */}
@@ -558,11 +603,13 @@ export const Authority = () => {
                   <button
                     onClick={() => handleDispatchUnit(currentTicket, 'assigned')}
                     disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
-                    className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold rounded-2xl text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-blue-500/25 transition-all min-h-[48px] cursor-pointer"
                   >
                     <Truck className="w-4 h-4" />
                     <span>
-                      {actionPending ? 'Deploying...' : `Confirm & Dispatch ${selectedUnit.name}`}
+                      {actionPending
+                        ? 'Deploying Squad...'
+                        : `Confirm & Dispatch ${activeSelectedUnit.name}`}
                     </span>
                   </button>
                 )}
@@ -571,7 +618,7 @@ export const Authority = () => {
                   <button
                     onClick={() => handleDispatchUnit(currentTicket, 'in_progress')}
                     disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
-                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-bold rounded-2xl text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-amber-500/20 transition-all min-h-[48px] cursor-pointer"
                   >
                     <Wrench className="w-4 h-4" />
                     <span>Mark Unit Active on Site (In Progress)</span>
@@ -582,7 +629,7 @@ export const Authority = () => {
                   <button
                     onClick={() => handleDispatchUnit(currentTicket, 'resolved')}
                     disabled={actionPending === (currentTicket._id || currentTicket.ticketId)}
-                    className="w-full py-3 px-4 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition-all min-h-[46px] cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-bold rounded-2xl text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-500/20 transition-all min-h-[48px] cursor-pointer"
                   >
                     <CheckCircle className="w-4 h-4" />
                     <span>Verify Field Proof & Certify Closure</span>
@@ -590,7 +637,7 @@ export const Authority = () => {
                 )}
 
                 {verificationSuccess && (
-                  <div className="bg-emerald-500/20 border border-emerald-500/40 p-2.5 rounded-xl text-emerald-300 text-xs font-bold text-center">
+                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl text-blue-900 text-xs font-bold text-center">
                     ✅ Resolution Verified! Visual proof-of-work sent to citizen.
                   </div>
                 )}

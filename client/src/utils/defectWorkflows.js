@@ -186,3 +186,181 @@ export const normalizeTimelineEvent = (event, category) => {
 
   return event;
 };
+
+/**
+ * Category-Specific Proximity Field Units for GIS Sub-Meter Telemetry
+ */
+export const CATEGORY_PROXIMITY_UNITS = {
+  water_leak: [
+    {
+      id: 'unit-w1',
+      name: 'Unit 2: BWSSB Rapid Valve Squad',
+      distance: '140m away',
+      eta: '15 mins',
+      squadLeader: 'Eng. Suresh M.',
+      equipment: 'High-Pressure Isolation Valves & Pipe Repair Sleeves',
+      fixTime: '1.5 Hours',
+      reason: 'Unit is closest with matched pressurized water isolation keys and ductile pipe sleeves.',
+    },
+    {
+      id: 'unit-w2',
+      name: 'Unit 7: BWSSB Pipeline Trenching Squad',
+      distance: '320m away',
+      eta: '25 mins',
+      squadLeader: 'Tech. Karthik R.',
+      equipment: 'Mini-Excavator & Trench Shoring Box',
+      fixTime: '2.5 Hours',
+      reason: 'Equipped for rapid trench excavation and mainline conduit replacement.',
+    },
+    {
+      id: 'unit-w3',
+      name: 'Unit 9: BWSSB Hydraulic Flow Restoration Unit',
+      distance: '490m away',
+      eta: '35 mins',
+      squadLeader: 'Insp. Ananth Kumar',
+      equipment: 'Digital Pressure Loggers & Mechanical Coupling Kits',
+      fixTime: '2.0 Hours',
+      reason: 'Equipped for hydrostatic pressure testing and zero-leakage certification.',
+    },
+  ],
+
+  garbage: [
+    {
+      id: 'unit-g1',
+      name: 'Unit 5: SWM Sanitation Compactor Squad',
+      distance: '150m away',
+      eta: '15 mins',
+      squadLeader: 'Lead Anand V.',
+      equipment: '4-Ton Mechanical Compactor & Disinfectant Sprayers',
+      fixTime: '1.0 Hours',
+      reason: 'Unit is closest with hydraulic tipping compactor and surface anti-bacterial disinfectant sprayers.',
+    },
+    {
+      id: 'unit-g2',
+      name: 'Unit 8: BBMP Mechanized Waste Tipper Unit',
+      distance: '310m away',
+      eta: '25 mins',
+      squadLeader: 'Supervisor Mohan G.',
+      equipment: 'Bulk Hydraulic Tipper Hauler & Skid Steer',
+      fixTime: '1.5 Hours',
+      reason: 'Equipped for heavy refuse clearing and bulk overflow dumpster hauling.',
+    },
+    {
+      id: 'unit-g3',
+      name: 'Unit 12: Zonal Cleanliness & Footway Sanitization Crew',
+      distance: '480m away',
+      eta: '35 mins',
+      squadLeader: 'Officer Priya N.',
+      equipment: 'Power Sweeper & Antimicrobial Bleaching Kit',
+      fixTime: '1.2 Hours',
+      reason: 'Equipped for complete black-spot elimination and public footway decontamination.',
+    },
+  ],
+
+  pothole: [
+    {
+      id: 'unit-p1',
+      name: 'Unit 4: Road Patch Tarmac Squad',
+      distance: '160m away',
+      eta: '15 mins',
+      squadLeader: 'Eng. Ramesh K.',
+      equipment: 'Hot-Mix Bitumen Batch & Vibro-Compactor',
+      fixTime: '1.5 Hours',
+      reason: 'Unit is closest with temperature-controlled asphalt hot-mix batch and vibratory roller.',
+    },
+    {
+      id: 'unit-p2',
+      name: 'Unit 1: BBMP Rapid Asphalt Compaction Unit',
+      distance: '340m away',
+      eta: '25 mins',
+      squadLeader: 'Supervisor Rajesh M.',
+      equipment: 'Infrared Bitumen Heater & Pneumatic Compaction Roller',
+      fixTime: '2.0 Hours',
+      reason: 'Equipped with infrared heater for seamless asphalt joint bonding and heavy compaction.',
+    },
+    {
+      id: 'unit-p3',
+      name: 'Unit 6: Zonal Arterial Road Surface Patch Crew',
+      distance: '510m away',
+      eta: '40 mins',
+      squadLeader: 'Tech. Vijay B.',
+      equipment: 'Cold-Pour Bitumen & Heavy Plate Tamper',
+      fixTime: '1.8 Hours',
+      reason: 'Equipped for high-traffic roadway emergency crater infill and leveling.',
+    },
+  ],
+
+  streetlight: [
+    {
+      id: 'unit-s1',
+      name: 'Unit 3: BESCOM Overhead Bucket Truck Squad',
+      distance: '140m away',
+      eta: '15 mins',
+      squadLeader: 'Lineman Devendra K.',
+      equipment: '15m Insulated Cherry-Picker & 120W LED Luminaires',
+      fixTime: '1.0 Hours',
+      reason: 'Unit is closest with insulated boom lift and street luminaire inventory.',
+    },
+    {
+      id: 'unit-s2',
+      name: 'Unit 11: BESCOM Power Cable & Feeder Repair Unit',
+      distance: '300m away',
+      eta: '25 mins',
+      squadLeader: 'Tech. Naveen S.',
+      equipment: 'Cable Fault Thumper & Megger Insulation Tester',
+      fixTime: '2.0 Hours',
+      reason: 'Equipped for underground feeder circuit short-circuit diagnosis and line rewiring.',
+    },
+    {
+      id: 'unit-s3',
+      name: 'Unit 14: Zonal Streetlight Luminaire Maintenance Crew',
+      distance: '470m away',
+      eta: '35 mins',
+      squadLeader: 'Insp. Lokesh V.',
+      equipment: 'Smart Photocell Controls & LED Replacement Fixtures',
+      fixTime: '1.5 Hours',
+      reason: 'Equipped for dusk-to-dawn photocell replacement and street bracket alignment.',
+    },
+  ],
+
+  drainage: [
+    {
+      id: 'unit-d1',
+      name: 'Unit 10: Stormwater Hydro-Jetting Machine Unit',
+      distance: '150m away',
+      eta: '15 mins',
+      squadLeader: 'Operator Murugan P.',
+      equipment: 'High-Pressure Water Jet & Vacuum Silt Slurry Pump',
+      fixTime: '1.5 Hours',
+      reason: 'Unit is closest with high-pressure hydro-jetting machine to dissolve silt blockages.',
+    },
+    {
+      id: 'unit-d2',
+      name: 'Unit 13: SWD Municipal Super-Sucker Desilting Squad',
+      distance: '320m away',
+      eta: '25 mins',
+      squadLeader: 'Tech. Govind R.',
+      equipment: 'Heavy-Duty Vacuum Sludge Tanker & Conduit Jetter',
+      fixTime: '2.0 Hours',
+      reason: 'Equipped with vacuum suction tanker for deep stormwater culvert desilting.',
+    },
+    {
+      id: 'unit-d3',
+      name: 'Unit 15: Monsoon Rapid Culvert & Drain Clearance Unit',
+      distance: '490m away',
+      eta: '35 mins',
+      squadLeader: 'Insp. Harish T.',
+      equipment: 'High-Capacity Submersible Dewatering Pump & Grate Puller',
+      fixTime: '2.5 Hours',
+      reason: 'Equipped for waterlogging extraction and roadside stormwater safety grate re-seating.',
+    },
+  ],
+};
+
+/**
+ * Returns proximity maintenance units tailored to the complaint problem.
+ */
+export const getProximityUnitsForCategory = (category) => {
+  const catKey = (category || 'pothole').toLowerCase();
+  return CATEGORY_PROXIMITY_UNITS[catKey] || CATEGORY_PROXIMITY_UNITS.pothole;
+};
