@@ -1,12 +1,18 @@
 const Issue = require('../models/Issue');
 
-// Format current time as readable string e.g. "10:15 AM"
-const formatTimeNow = () => {
-  return new Date().toLocaleTimeString('en-US', {
+// Format current time and date as readable string e.g. "03:15 AM, 09 Oct 2026"
+const formatTimeNow = (d = new Date()) => {
+  const time = d.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   });
+  const date = d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  return `${time}, ${date}`;
 };
 
 // Generate unique ticket ID: e.g. SEVA-8012 (SRS FR-4.1)
@@ -210,14 +216,17 @@ exports.createIssue = async (req, res) => {
     }
 
     const ticketId = customTicketId || (await generateTicketId());
+    const now = new Date();
+    const timeString = formatTimeNow(now);
 
     const initialTimeline = [
       {
         status: 'reported',
-        title: 'Report Logged',
-        time: formatTimeNow(),
-        detail: 'Citizen captured defect evidence and AI Sentinel verified coordinates.',
+        title: 'Report Logged & Saved in MongoDB',
+        time: timeString,
+        detail: 'Citizen captured photographic defect evidence; complaint verified and stored in MongoDB database.',
         badge: 'Citizen Filed',
+        timestamp: now,
       },
     ];
 
@@ -407,9 +416,26 @@ exports.updateStatus = async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const timeString = formatTimeNow(now);
+
     issue.status = status;
     if (resolvedImageUrl) {
       issue.resolvedImageUrl = resolvedImageUrl;
+    }
+
+    if (status === 'assigned') {
+      issue.assignedAt = now;
+    } else if (status === 'in_progress') {
+      issue.workStartedAt = now;
+    } else if (status === 'resolved') {
+      issue.resolvedAt = now;
+      issue.resolvedTimeReadable = timeString;
+      issue.resolvedBy = req.body.resolvedBy || req.body.badge || 'Zonal Authority Official';
+      issue.resolutionNotes = detail || title || 'Defect resolved and verified with photographic evidence.';
+      if (issue.reportedAt) {
+        issue.durationToResolveMinutes = Math.max(1, Math.round((now.getTime() - new Date(issue.reportedAt).getTime()) / 60000));
+      }
     }
 
     const defaultTimelineMeta = {
@@ -424,7 +450,7 @@ exports.updateStatus = async (req, res) => {
         badge: badge || 'Crew Active',
       },
       resolved: {
-        title: title || 'Resolution Certified',
+        title: title || 'Work Finished & Resolution Certified',
         detail: detail || 'Civic defect resolved and verified with after-repair photographic evidence.',
         badge: badge || 'Official Certified',
       },
@@ -439,9 +465,11 @@ exports.updateStatus = async (req, res) => {
     issue.timeline.push({
       status,
       title: meta.title,
-      time: formatTimeNow(),
+      time: timeString,
       detail: meta.detail,
       badge: meta.badge,
+      timestamp: now,
+      performedBy: req.body.resolvedBy || req.body.authorityName || null,
     });
 
     const updatedIssue = await issue.save();

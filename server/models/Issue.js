@@ -27,6 +27,10 @@ const timelineEventSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  performedBy: {
+    type: String,
+    default: null,
+  },
 });
 
 // Issue Item Schema (SRS Section 6.1)
@@ -110,6 +114,36 @@ const issueSchema = new mongoose.Schema(
     reportedAt: {
       type: Date,
       default: Date.now,
+      index: true,
+    },
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
+    workStartedAt: {
+      type: Date,
+      default: null,
+    },
+    resolvedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    resolvedTimeReadable: {
+      type: String,
+      default: null,
+    },
+    resolvedBy: {
+      type: String,
+      default: null,
+    },
+    resolutionNotes: {
+      type: String,
+      default: null,
+    },
+    durationToResolveMinutes: {
+      type: Number,
+      default: null,
     },
     upvotes: {
       type: Number,

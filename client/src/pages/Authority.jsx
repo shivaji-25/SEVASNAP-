@@ -116,6 +116,7 @@ export const Authority = () => {
           title: 'AI Verification Loop Passed',
           detail: 'Before/after photographic proof validated. Citizen notified & record certified closed.',
           badge: 'Official Certified',
+          resolvedBy: selectedUnit.squadLeader || 'Zonal Engineering Unit',
           resolvedImageUrl:
             'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
         },

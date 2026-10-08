@@ -22,11 +22,31 @@ app.get('/', (req, res) => {
   res.send('SEVASNAP AI-Powered Civic Intelligence API is running');
 });
 
-// Health check route
-app.get('/api/health', (req, res) => {
+const mongoose = require('mongoose');
+
+// Health check route reporting live MongoDB connection state
+app.get('/api/health', async (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
+  let totalIssues = 0;
+  if (isConnected) {
+    try {
+      const Issue = require('./models/Issue');
+      totalIssues = await Issue.countDocuments();
+    } catch {
+      // Ignore count error
+    }
+  }
+
   res.json({
     status: 'OK',
     service: 'SEVASNAP Backend',
+    database: {
+      connected: isConnected,
+      status: isConnected ? 'Connected' : 'Connecting/Offline',
+      name: mongoose.connection.name || 'sevasnap',
+      host: mongoose.connection.host || 'MongoDB Atlas',
+      totalComplaintsStored: totalIssues,
+    },
     timestamp: new Date().toISOString(),
   });
 });

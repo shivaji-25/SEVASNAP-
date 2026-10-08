@@ -177,6 +177,7 @@ export const Tracking = () => {
         title: 'Photographic Quality Verified',
         detail: 'Zonal Inspector certified surface integrity & approved before/after visual proof-of-work.',
         badge: 'Official Certified',
+        resolvedBy: 'Zonal Municipal Inspector',
         resolvedImageUrl:
           'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
       },

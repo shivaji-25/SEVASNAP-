@@ -105,6 +105,7 @@ export const GovDashboard = () => {
           title: 'Resolution Certified by Zonal Officer',
           detail: `Photographic quality certified by ${authorityUser.name} (${authorityUser.employeeId}).`,
           badge: 'Official Certified',
+          resolvedBy: `${authorityUser.name} (${authorityUser.employeeId})`,
           resolvedImageUrl:
             'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
         },
