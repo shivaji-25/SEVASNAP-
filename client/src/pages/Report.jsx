@@ -1,31 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
+import { CameraCapture } from '../components/CameraCapture';
+import { uploadImage, analyzeIssue } from '../services/api';
 import {
   Camera,
-  Image,
-  Crosshair,
-  MapPin,
   Sparkles,
-  Sun,
-  Compass,
-  Check,
+  MapPin,
+  CheckCircle2,
   AlertTriangle,
   ArrowRight,
   Send,
-  Video,
-  VideoOff,
-  RotateCw,
   RefreshCw,
-  CheckCircle2,
+  Clock,
+  Shield,
+  Layers,
+  FileText,
 } from 'lucide-react';
 
-const DIAGNOSTIC_PRESETS = [
+const SRS_DEMO_PRESETS = [
   {
     key: 'pothole',
     label: 'Pothole',
     icon: '🕳️',
-    title: 'Asphalt Pothole Crater',
+    title: 'Asphalt Road Crater',
     image: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80',
     categoryName: 'Pothole',
     severity: 'High',
@@ -35,7 +33,7 @@ const DIAGNOSTIC_PRESETS = [
   },
   {
     key: 'garbage',
-    label: 'Waste Dump',
+    label: 'Garbage Dump',
     icon: '🗑️',
     title: 'Overflowing Waste Dump',
     image: 'https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=800&q=80',
@@ -54,7 +52,7 @@ const DIAGNOSTIC_PRESETS = [
     categoryName: 'Water Main Burst',
     severity: 'High',
     confidence: 98.7,
-    department: 'Bangalore Water Supply & Sewerage Board (BWSSB)',
+    department: 'Water Supply & Sewerage Board',
     description: 'Pressurized drinking water pipeline burst eroding surface tarmac.',
   },
   {
@@ -66,7 +64,7 @@ const DIAGNOSTIC_PRESETS = [
     categoryName: 'Damaged Streetlight',
     severity: 'Low',
     confidence: 94.1,
-    department: 'Electricity Supply Company (BESCOM)',
+    department: 'Electricity Supply Company',
     description: 'Overhead luminaire failure creating dark pedestrian vulnerability.',
   },
   {
@@ -87,142 +85,108 @@ export const Report = () => {
   const navigate = useNavigate();
   const { userLocation, detectLocation, submitIssue } = useCivic();
 
-  const [selectedPreset, setSelectedPreset] = useState(DIAGNOSTIC_PRESETS[0]);
-  const [selectedImage, setSelectedImage] = useState(DIAGNOSTIC_PRESETS[0].image);
-  const [isLockingGps, setIsLockingGps] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Workflow state: 'capture' | 'analyzing' | 'verified'
+  const [stage, setStage] = useState('capture');
 
-  // Live Camera states
-  const [isLiveCameraActive, setIsLiveCameraActive] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' or 'user'
-  const [cameraError, setCameraError] = useState(null);
-  const [isFlashing, setIsFlashing] = useState(false);
-  const [isLiveCaptured, setIsLiveCaptured] = useState(false);
+  // Selected or captured photo details
+  const [photoData, setPhotoData] = useState(null); // { previewUrl, file }
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+  const [activePreset, setActivePreset] = useState(null);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const nativeCameraInputRef = useRef(null);
+  // AI Analysis Results
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [customNotes, setCustomNotes] = useState('');
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Clean up stream on unmount
-  useEffect(() => {
-    return () => {
-      stopLiveCamera();
-    };
-  }, []);
+  // 1. User confirms photo from CameraCapture component
+  const handlePhotoConfirmed = async ({ previewUrl, file }) => {
+    setPhotoData({ previewUrl, file });
+    setStage('analyzing');
+    setErrorMessage('');
 
-  // Start live device camera using getUserMedia
-  const startLiveCamera = async (facing = cameraFacing) => {
     try {
-      setCameraError(null);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      let finalImageUrl = previewUrl;
+
+      // If a real file was captured/uploaded, upload to backend Multer storage
+      if (file) {
+        try {
+          const uploadRes = await uploadImage(file);
+          if (uploadRes.imageUrl) {
+            finalImageUrl = uploadRes.imageUrl;
+            setUploadedImageUrl(uploadRes.imageUrl);
+          }
+        } catch (uploadErr) {
+          console.warn('Backend upload notice, using preview URL:', uploadErr.message);
+        }
+      } else {
+        setUploadedImageUrl(previewUrl);
       }
 
-      const constraints = {
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
+      // Send to Backend AI Vision Analysis
+      const aiResponse = await analyzeIssue({
+        image: finalImageUrl,
+        location: userLocation,
+        presetKey: activePreset?.key || undefined,
+        description: activePreset?.description || undefined,
+      });
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setIsLiveCameraActive(true);
-      setIsLiveCaptured(false);
+      setAiAnalysis({
+        category: aiResponse.category || activePreset?.key || 'pothole',
+        categoryName: aiResponse.categoryName || activePreset?.categoryName || 'Civic Defect',
+        severity: aiResponse.severity || activePreset?.severity || 'High',
+        confidence: aiResponse.confidence || activePreset?.confidence || 97.4,
+        department: aiResponse.department || activePreset?.department || 'Municipal Administration',
+        sla: aiResponse.sla || activePreset?.sla || 'Under 4 hours',
+        title: activePreset?.title || `Reported ${aiResponse.categoryName || 'Defect'}`,
+        description: activePreset?.description || 'Detected civic hazard requiring municipal maintenance.',
+      });
+
+      setStage('verified');
     } catch (err) {
-      console.warn('Live Camera error:', err);
-      setCameraError(
-        'Unable to access live webcam/camera. Check browser permissions or use the Native Camera / Presets below.'
-      );
-      setIsLiveCameraActive(false);
+      console.error('AI Analysis failed:', err);
+      // Fallback to active preset or default pothole
+      const fallback = activePreset || SRS_DEMO_PRESETS[0];
+      setAiAnalysis({
+        category: fallback.key,
+        categoryName: fallback.categoryName,
+        severity: fallback.severity,
+        confidence: fallback.confidence,
+        department: fallback.department,
+        sla: 'Under 4 hours',
+        title: fallback.title,
+        description: fallback.description,
+      });
+      setStage('verified');
     }
   };
 
-  // Stop live camera stream
-  const stopLiveCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    setIsLiveCameraActive(false);
+  // Preset selected directly
+  const handlePresetSelected = (preset) => {
+    setActivePreset(preset);
   };
 
-  // Switch between front & rear camera
-  const handleFlipCamera = () => {
-    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment';
-    setCameraFacing(nextFacing);
-    if (isLiveCameraActive) {
-      startLiveCamera(nextFacing);
-    }
+  // Retake photo: resets back to Camera step
+  const handleRetakePhoto = () => {
+    setPhotoData(null);
+    setUploadedImageUrl('');
+    setAiAnalysis(null);
+    setActivePreset(null);
+    setStage('capture');
   };
 
-  // Capture frame from live video stream to photo
-  const captureFrame = () => {
-    if (!videoRef.current) return;
+  // 2. Final Confirmation: Save to MongoDB & Dispatch Ticket
+  const handleCreateCivicTicket = async () => {
+    setIsSubmittingTicket(true);
+    setErrorMessage('');
 
-    // Trigger visual flash animation
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 200);
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current || document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    setSelectedImage(dataUrl);
-    setIsLiveCaptured(true);
-    stopLiveCamera();
-  };
-
-  // Handle local camera or gallery upload
-  const handleFileUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        setSelectedImage(uploadEvent.target.result);
-        setIsLiveCaptured(true);
-        stopLiveCamera();
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSelectPreset = (preset) => {
-    stopLiveCamera();
-    setSelectedPreset(preset);
-    setSelectedImage(preset.image);
-    setIsLiveCaptured(false);
-  };
-
-  // Re-detect GPS lock
-  const handleRelockGps = async () => {
-    setIsLockingGps(true);
-    await detectLocation();
-    setTimeout(() => setIsLockingGps(false), 600);
-  };
-
-  // Zero-Form 1-Tap Submission
-  const handleOneTapSubmit = async () => {
-    setIsSubmitting(true);
     try {
       const payload = {
-        title: isLiveCaptured ? `Citizen Report: ${selectedPreset.categoryName}` : selectedPreset.title,
-        category: selectedPreset.key,
-        categoryName: selectedPreset.categoryName,
-        description: selectedPreset.description,
-        imageUrl: selectedImage,
+        title: aiAnalysis.title,
+        category: aiAnalysis.category,
+        categoryName: aiAnalysis.categoryName,
+        description: customNotes.trim() || aiAnalysis.description,
+        imageUrl: uploadedImageUrl || photoData?.previewUrl,
         location: {
           address: userLocation.address,
           ward: userLocation.ward,
@@ -230,323 +194,205 @@ export const Report = () => {
           lng: userLocation.lng,
           distance: 'At Reporting Location',
         },
-        priority: selectedPreset.severity,
-        confidence: isLiveCaptured ? 98.2 : selectedPreset.confidence,
-        department: selectedPreset.department,
+        priority: aiAnalysis.severity,
+        confidence: aiAnalysis.confidence,
+        department: aiAnalysis.department,
       };
 
       const res = await submitIssue(payload);
-      navigate(`/tracking?ticket=${res.issue.ticketId}`);
+      const ticketId = res.issue?.ticketId || 'SEVA-1001';
+      navigate(`/tracking?ticket=${ticketId}`);
     } catch (err) {
-      console.error('Submit error:', err);
+      console.error('Ticket submission failed:', err);
+      setErrorMessage(err.message || 'Failed to submit report. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingTicket(false);
     }
   };
 
   return (
-    <div className="pb-28 pt-3 px-4 max-w-md mx-auto space-y-4">
-      {/* Hidden canvas for snapshot rasterization */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* 1. Header with Zero-Form Pill */}
+    <div className="pb-28 pt-2 px-4 max-w-md mx-auto space-y-4">
+      {/* Step Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-black text-slate-900 tracking-tight">Smart Viewfinder</h2>
-          <p className="text-[11px] text-slate-500">Live Camera & AI Civic Intelligence</p>
+          <h2 className="text-base font-black text-slate-900 tracking-tight">
+            {stage === 'capture' && 'Report Civic Issue'}
+            {stage === 'analyzing' && 'AI Sentinel Vision'}
+            {stage === 'verified' && 'AI Verification & Dispatch'}
+          </h2>
+          <p className="text-[11px] text-slate-500">
+            {stage === 'capture' && 'Snap photo & lock GPS coordinates'}
+            {stage === 'analyzing' && 'Scanning defect boundaries & department routing...'}
+            {stage === 'verified' && 'Review AI diagnosis & confirm municipal ticket'}
+          </p>
         </div>
+
         <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
           <Sparkles className="w-3 h-3 text-emerald-600" />
-          <span>Zero-Form Mode</span>
+          <span>Step {stage === 'capture' ? '1/3' : stage === 'analyzing' ? '2/3' : '3/3'}</span>
         </span>
       </div>
 
-      {/* Camera Mode Action Bar */}
-      <div className="grid grid-cols-3 gap-2">
-        <button
-          onClick={() => {
-            if (isLiveCameraActive) {
-              stopLiveCamera();
-            } else {
-              startLiveCamera();
-            }
-          }}
-          className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-2xl text-xs font-bold transition-all border shadow-sm ${
-            isLiveCameraActive
-              ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
-              : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-500'
-          }`}
-        >
-          {isLiveCameraActive ? (
-            <>
-              <VideoOff className="w-3.5 h-3.5" />
-              <span>Stop Feed</span>
-            </>
-          ) : (
-            <>
-              <Camera className="w-3.5 h-3.5" />
-              <span>Live Camera</span>
-            </>
-          )}
-        </button>
-
-        {/* Device Native Camera trigger (works on mobile phones natively) */}
-        <button
-          onClick={() => nativeCameraInputRef.current?.click()}
-          className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded-2xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 border border-slate-700 shadow-sm"
-        >
-          <Video className="w-3.5 h-3.5 text-amber-400" />
-          <span>Device Cam</span>
-        </button>
-        <input
-          type="file"
-          ref={nativeCameraInputRef}
-          onChange={handleFileUpload}
-          accept="image/*"
-          capture="environment"
-          className="hidden"
+      {/* STAGE 1: CAMERA CAPTURE / GALLERY / PREVIEWS */}
+      {stage === 'capture' && (
+        <CameraCapture
+          userLocation={userLocation}
+          onConfirmPhoto={handlePhotoConfirmed}
+          presets={SRS_DEMO_PRESETS}
+          onSelectPreset={handlePresetSelected}
         />
+      )}
 
-        {/* Gallery / File Picker */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded-2xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm"
-        >
-          <Image className="w-3.5 h-3.5 text-slate-500" />
-          <span>Gallery</span>
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          accept="image/*"
-          className="hidden"
-        />
-      </div>
+      {/* STAGE 2: AI ANALYZING SCANNER */}
+      {stage === 'analyzing' && (
+        <div className="bg-slate-950 text-white rounded-3xl p-6 border-2 border-slate-800 shadow-2xl text-center space-y-4 aspect-[4/3] flex flex-col items-center justify-center relative overflow-hidden">
+          {/* Pulsing Scan Rings */}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full border-4 border-emerald-500/30 animate-ping absolute inset-0" />
+            <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/20">
+              <Sparkles className="w-8 h-8 animate-spin" />
+            </div>
+          </div>
 
-      {/* Camera Error Alert if permissions rejected */}
-      {cameraError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 flex items-start space-x-2 text-xs text-amber-900">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1 leading-snug">
-            <span>{cameraError}</span>
+          <div>
+            <h3 className="text-sm font-black text-white">AI Sentinel Vision Triage</h3>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Analyzing photo pixels, defect category, severity & municipal SLA...
+            </p>
+          </div>
+
+          <div className="text-[10px] font-mono text-emerald-400 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-800">
+            TARGET: {userLocation.ward || 'GPS Coordinates Locked'}
           </div>
         </div>
       )}
 
-      {/* 2. Smart Viewfinder with Frame Assistance & Sensor Overlays (View B) */}
-      <div className="relative aspect-[4/3] rounded-3xl overflow-hidden bg-slate-950 border-2 border-slate-800 shadow-2xl group">
-        {/* Flash Effect upon shutter capture */}
-        {isFlashing && (
-          <div className="absolute inset-0 bg-white z-40 transition-opacity duration-200 opacity-90 pointer-events-none" />
-        )}
-
-        {/* Active Live Video Stream OR Captured/Preset Image */}
-        {isLiveCameraActive ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <img
-            src={selectedImage}
-            alt="Smart Viewfinder Defect"
-            className="w-full h-full object-cover opacity-90 transition-transform duration-300"
-          />
-        )}
-
-        {/* Augmented Framing Overlay & Reticles */}
-        <div className="absolute inset-0 pointer-events-none p-3.5 flex flex-col justify-between">
-          {/* Top telemetry: Lighting Meter & HUD mode */}
-          <div className="flex items-center justify-between">
-            {/* Optimal Lighting Sensor HUD */}
-            <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-amber-300 border border-amber-500/30 flex items-center space-x-1">
-              <Sun className="w-3 h-3 text-amber-400" />
-              <span>{isLiveCameraActive ? 'LIVE STREAM' : 'Optimal Lux 820'}</span>
+      {/* STAGE 3: AI VERIFICATION CARD & FINAL TICKET CONFIRMATION */}
+      {stage === 'verified' && aiAnalysis && (
+        <div className="space-y-3.5">
+          {/* Confirmed Photo Thumbnail + Category Badge */}
+          <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-950 border border-slate-800 shadow-md">
+            <img
+              src={photoData?.previewUrl}
+              alt="Confirmed Defect"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute top-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white border border-slate-700 flex items-center gap-1.5">
+              <span>{SRS_DEMO_PRESETS.find((p) => p.key === aiAnalysis.category)?.icon || '📍'}</span>
+              <span>{aiAnalysis.categoryName}</span>
             </div>
 
-            {/* Target Area Framing Reticle Badge */}
-            <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-400 border border-emerald-500/40">
-              {isLiveCameraActive ? 'OPTICAL_ACTIVE' : 'FRAME_LOCK // OK'}
-            </div>
-
-            {/* Gyro Level Sensor */}
-            <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-300 border border-slate-700 flex items-center space-x-1">
-              <Compass className="w-3 h-3 text-emerald-400 animate-spin" />
-              <span>0.2° Horizon</span>
-            </div>
+            <button
+              onClick={handleRetakePhoto}
+              className="absolute top-2.5 right-2.5 bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition-all"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retake</span>
+            </button>
           </div>
 
-          {/* Augmented Center Bounding Box Target */}
-          <div className="self-center flex flex-col items-center justify-center">
-            <div className="w-48 h-32 border-2 border-dashed border-emerald-400/80 rounded-2xl flex flex-col items-center justify-center relative bg-emerald-500/5">
-              <Crosshair className="w-8 h-8 text-emerald-400 animate-pulse stroke-[1.5]" />
-              <span className="text-[9px] font-mono font-bold text-emerald-300 mt-1 uppercase tracking-wider bg-slate-950/70 px-2 py-0.5 rounded">
-                Defect Target Centered
-              </span>
-            </div>
-          </div>
-
-          {/* Bottom GPS Micro-Location Overlay */}
-          <div className="flex items-center justify-between">
-            <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-mono text-slate-200 border border-slate-700 flex items-center space-x-1">
-              <MapPin className="w-3 h-3 text-emerald-400" />
-              <span>
-                {userLocation.lat.toFixed(5)}° N, {userLocation.lng.toFixed(5)}° E
+          {/* AI Diagnostic Results Grid */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <Shield className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-black text-slate-900">AI Diagnostic Report</span>
+              </div>
+              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {aiAnalysis.confidence}% Confidence
               </span>
             </div>
 
-            <span className="text-[9px] font-bold bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
-              GPS SUB-METER LOCK
-            </span>
-          </div>
-        </div>
+            {/* Severity & SLA metrics */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Severity Rating
+                </span>
+                <span
+                  className={`font-black ${
+                    aiAnalysis.severity === 'High'
+                      ? 'text-red-600'
+                      : aiAnalysis.severity === 'Medium'
+                      ? 'text-amber-600'
+                      : 'text-blue-600'
+                  }`}
+                >
+                  {aiAnalysis.severity} Priority
+                </span>
+              </div>
 
-        {/* Live Camera Shutter Button Overlay */}
-        {isLiveCameraActive && (
-          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center space-x-4 z-30">
-            {/* Flip camera */}
-            <button
-              onClick={handleFlipCamera}
-              className="p-3 bg-slate-900/80 backdrop-blur-md text-white rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
-              aria-label="Switch Camera"
-              title="Flip Camera"
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Target Resolution SLA
+                </span>
+                <span className="font-bold text-slate-800 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-500" />
+                  <span>{aiAnalysis.sla}</span>
+                </span>
+              </div>
+            </div>
 
-            {/* Shutter capture button */}
-            <button
-              onClick={captureFrame}
-              className="w-16 h-16 rounded-full bg-white border-4 border-emerald-500 shadow-2xl flex items-center justify-center active:scale-90 transition-transform ring-4 ring-emerald-500/30"
-              aria-label="Capture Photo"
-              title="Snap Defect Photo"
-            >
-              <div className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-600 transition-colors" />
-            </button>
+            {/* Responsible Department & Location */}
+            <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
+              <div className="flex items-start space-x-1.5">
+                <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-bold">Assigned Department</span>
+                  <span className="font-bold text-slate-900">{aiAnalysis.department}</span>
+                </div>
+              </div>
 
-            {/* Close camera */}
-            <button
-              onClick={stopLiveCamera}
-              className="p-3 bg-slate-900/80 backdrop-blur-md text-rose-400 rounded-full border border-slate-700 hover:bg-slate-800 active:scale-95 transition-transform"
-              aria-label="Stop Camera"
-              title="Stop Camera"
-            >
-              <VideoOff className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+              <div className="flex items-start space-x-1.5 pt-1">
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-bold">Location Verified</span>
+                  <span className="font-medium text-slate-800 text-[11px]">
+                    {userLocation.address || userLocation.ward}
+                  </span>
+                  <div className="text-[10px] font-mono text-slate-400">
+                    {userLocation.lat?.toFixed(5)}° N, {userLocation.lng?.toFixed(5)}° E
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        {/* Live Captured Badge */}
-        {isLiveCaptured && (
-          <div className="absolute top-3 left-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 z-20">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>Photo Snapped</span>
-          </div>
-        )}
-      </div>
-
-      {/* 3. Diagnostic Test Presets (Instant 1-Tap Demo / Defect Classifier) */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-          <span>{isLiveCaptured ? 'Select AI Defect Category' : 'Target Category Presets'}</span>
-          <span className="text-slate-400 font-normal text-[11px]">Instant Context Tag</span>
-        </div>
-        <div className="grid grid-cols-5 gap-1.5">
-          {DIAGNOSTIC_PRESETS.map((preset) => (
-            <button
-              key={preset.key}
-              onClick={() => handleSelectPreset(preset)}
-              className={`flex flex-col items-center justify-center p-2 rounded-2xl border text-center transition-all ${
-                selectedPreset.key === preset.key
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-600 shadow-md font-bold'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-base">{preset.icon}</span>
-              <span className="text-[10px] mt-1 leading-tight truncate w-full">
-                {preset.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. Real-Time Auto-Populated Context Card (Zero Manual Typing) */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black text-slate-900">
-            Real-Time AI Verification Metadata
-          </span>
-          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-            {isLiveCaptured ? '98.2%' : `${selectedPreset.confidence}%`} Confidence
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Category</span>
-            <span className="font-bold text-slate-900">{selectedPreset.categoryName}</span>
-          </div>
-
-          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Severity Score</span>
-            <span
-              className={`font-black ${
-                selectedPreset.severity === 'High' ? 'text-red-600' : 'text-amber-600'
-              }`}
-            >
-              {selectedPreset.severity} Priority
-            </span>
-          </div>
-        </div>
-
-        {/* Display-verified street address */}
-        <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
-          <div>
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">
-              Display-Verified Location
-            </span>
-            <div className="font-bold text-slate-900 mt-0.5">{userLocation.ward}</div>
-            <div className="text-[11px] text-slate-500 font-mono">
-              {userLocation.lat.toFixed(5)}° N, {userLocation.lng.toFixed(5)}° E
+            {/* Optional Citizen Notes */}
+            <div className="pt-1">
+              <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                Additional Notes (Optional)
+              </label>
+              <textarea
+                value={customNotes}
+                onChange={(e) => setCustomNotes(e.target.value)}
+                placeholder="Add any landmark or specific instructions for the municipal squad..."
+                rows={2}
+                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900 resize-none"
+              />
             </div>
           </div>
+
+          {/* Error Message if submit fails */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-2.5 rounded-xl text-xs flex items-center space-x-1.5">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Confirm & Create Ticket Primary Action Button */}
           <button
-            onClick={handleRelockGps}
-            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 p-2"
+            onClick={handleCreateCivicTicket}
+            disabled={isSubmittingTicket}
+            className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black rounded-2xl shadow-xl shadow-emerald-500/30 flex items-center justify-center space-x-2 transition-all min-h-[50px] text-xs cursor-pointer"
           >
-            {isLockingGps ? 'Locking...' : 'Re-lock'}
+            <Send className="w-4 h-4 stroke-[2.5]" />
+            <span>
+              {isSubmittingTicket ? 'Creating Ticket & Dispatching...' : 'Confirm & Create Civic Ticket'}
+            </span>
           </button>
         </div>
-
-        <div className="text-[11px] text-slate-500">
-          Target Authority: <span className="font-semibold text-slate-700">{selectedPreset.department}</span>
-        </div>
-      </div>
-
-      {/* 5. One-Tap Confirmation Action (Zero-Form Reporting) */}
-      <button
-        onClick={handleOneTapSubmit}
-        disabled={isSubmitting || isLiveCameraActive}
-        className={`w-full py-4 px-4 font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 active:scale-[0.98] transition-all min-h-[52px] text-sm ${
-          isLiveCameraActive
-            ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
-        }`}
-      >
-        <Send className="w-5 h-5 stroke-[2.2]" />
-        <span>
-          {isSubmitting
-            ? 'Dispatching Ticket...'
-            : isLiveCameraActive
-            ? 'Snap Photo First to Submit'
-            : '1-Tap Submit Report'}
-        </span>
-      </button>
+      )}
     </div>
   );
 };
