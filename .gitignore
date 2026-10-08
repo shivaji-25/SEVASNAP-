@@ -8,3 +8,9 @@ node_modules/
 # Windows Directory Junction Links (linked to client and server)
 frontend
 backend
+
+# User runtime uploads
+server/uploads/*
+!server/uploads/.gitkeep
+uploads/
+
