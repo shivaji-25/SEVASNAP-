@@ -398,36 +398,67 @@ export const CameraCapture = ({
 
       {/* Action Buttons: Device Cam / Live Viewfinder / Gallery */}
       {!streamActive && !capturedImage && (
-        <div className="grid grid-cols-3 gap-2">
-          {/* 1. Mobile Device Hardware Camera (Always works on phones!) */}
-          <button
-            type="button"
-            onClick={openDeviceCamera}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer"
-          >
-            <Smartphone className="w-4 h-4 text-emerald-200" />
-            <span>Phone Cam</span>
-          </button>
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-3 gap-2">
+            {/* 1. Mobile Device Hardware Camera (Always works on phones!) */}
+            <button
+              type="button"
+              onClick={openDeviceCamera}
+              className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-200" />
+              <span>Phone Cam</span>
+            </button>
 
-          {/* 2. Live In-Browser Viewfinder */}
-          <button
-            type="button"
-            onClick={() => startLiveStream()}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md border border-slate-700 active:scale-95 transition-all cursor-pointer"
-          >
-            <Camera className="w-4 h-4 text-amber-400" />
-            <span>Live Feed</span>
-          </button>
+            {/* 2. Live In-Browser Viewfinder */}
+            <button
+              type="button"
+              onClick={() => startLiveStream()}
+              className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md border border-slate-700 active:scale-95 transition-all cursor-pointer"
+            >
+              <Camera className="w-4 h-4 text-amber-400" />
+              <span>Live Feed</span>
+            </button>
 
-          {/* 3. Upload from Gallery */}
-          <button
-            type="button"
-            onClick={openGallery}
-            className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm active:scale-95 transition-all cursor-pointer"
-          >
-            <ImageIcon className="w-4 h-4 text-slate-500" />
-            <span>Gallery</span>
-          </button>
+            {/* 3. Upload from Gallery */}
+            <button
+              type="button"
+              onClick={openGallery}
+              className="flex items-center justify-center space-x-1.5 py-3 px-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <ImageIcon className="w-4 h-4 text-slate-500" />
+              <span>Gallery</span>
+            </button>
+          </div>
+
+          {/* Quick Defect Sample Presets */}
+          {presets && presets.length > 0 && (
+            <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  <span>Verified Civic Defect Samples</span>
+                </span>
+                <span className="text-[9px] text-slate-400 font-bold">Instant triage test</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {presets.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => handleSelectPreset(p)}
+                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 transition-all cursor-pointer group active:scale-95"
+                    title={p.title}
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">{p.icon}</span>
+                    <span className="text-[9px] font-bold text-slate-700 mt-1 truncate w-full text-center">
+                      {p.label.split('/')[0].trim()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -36,13 +36,13 @@ const PRESETS = {
   },
   water_leak: {
     category: 'water_leak',
-    categoryName: 'Water Main Burst',
-    title: 'Pressurized Water Pipeline Rupture',
+    categoryName: 'Water Main Burst & Pipeline Leak',
+    title: 'Pressurized Water Pipeline Rupture & Leak',
     severity: 'High',
     confidence: 98.7,
-    department: 'Water Supply & Sewerage Board',
+    department: 'Water Supply & Sewerage Board (BWSSB)',
     sla: 'Under 4 hours',
-    description: 'Pressurized water pipeline rupture resulting in clean drinking water loss and street pooling.',
+    description: 'Pressurized municipal drinking water pipeline rupture causing continuous clean water loss, roadway erosion, and distribution pressure failure. Emergency valve isolation and pipe section replacement required.',
   },
   streetlight: {
     category: 'streetlight',
@@ -50,7 +50,7 @@ const PRESETS = {
     title: 'Defective Public Streetlight Fixture',
     severity: 'Low',
     confidence: 94.1,
-    department: 'Electricity Supply Company',
+    department: 'Electricity Supply Company (BESCOM)',
     sla: 'Under 48 hours',
     description: 'Defective public luminaire causing dark zone hazard for pedestrians.',
   },
@@ -60,7 +60,7 @@ const PRESETS = {
     title: 'Blocked Monsoon Stormwater Drain',
     severity: 'High',
     confidence: 95.8,
-    department: 'Stormwater Drain Department',
+    department: 'Stormwater Drain & Sewerage Department',
     sla: 'Under 4 hours',
     description: 'Grate silt and debris blockage impeding monsoon stormwater drainage.',
   },
@@ -156,16 +156,70 @@ Respond ONLY with a valid JSON object matching this schema:
   return null;
 };
 
-/**
- * Main Defect Analysis Entry Point
- */
-exports.analyzeDefect = async ({ image, location, description, presetKey }) => {
-  // 1. Direct preset key match if selected
-  if (presetKey && PRESETS[presetKey]) {
-    return PRESETS[presetKey];
+exports.analyzeDefect = async ({ image, location, description, presetKey, category, title }) => {
+  // 1. Direct preset key or category match
+  const selectedKey = presetKey || category;
+  if (selectedKey && PRESETS[selectedKey]) {
+    return {
+      ...PRESETS[selectedKey],
+      modelSource: 'SEVASNAP Municipal Calibrated',
+    };
   }
 
-  // 2. Read local image file for Google Gemini Vision inference
+  // 2. Keyword heuristic analysis on description/title/image before remote call
+  const textContext = `${description || ''} ${title || ''} ${image || ''} ${presetKey || ''}`.toLowerCase();
+  if (
+    textContext.includes('water') ||
+    textContext.includes('leak') ||
+    textContext.includes('pipe') ||
+    textContext.includes('burst') ||
+    textContext.includes('valve') ||
+    textContext.includes('plumb') ||
+    (textContext.includes('repair') && (textContext.includes('water') || textContext.includes('pipe')))
+  ) {
+    return { ...PRESETS.water_leak, confidence: 98.7, modelSource: 'Municipal Sentinel Intelligence' };
+  }
+  if (
+    textContext.includes('garbage') ||
+    textContext.includes('trash') ||
+    textContext.includes('waste') ||
+    textContext.includes('dump') ||
+    textContext.includes('bin') ||
+    textContext.includes('litter')
+  ) {
+    return { ...PRESETS.garbage, confidence: 96.2, modelSource: 'Municipal Sentinel Intelligence' };
+  }
+  if (
+    textContext.includes('light') ||
+    textContext.includes('pole') ||
+    textContext.includes('lamp') ||
+    textContext.includes('dark') ||
+    textContext.includes('luminaire')
+  ) {
+    return { ...PRESETS.streetlight, confidence: 94.1, modelSource: 'Municipal Sentinel Intelligence' };
+  }
+  if (
+    textContext.includes('drain') ||
+    textContext.includes('flood') ||
+    textContext.includes('sewer') ||
+    textContext.includes('gutter') ||
+    textContext.includes('clog') ||
+    textContext.includes('storm')
+  ) {
+    return { ...PRESETS.drainage, confidence: 95.8, modelSource: 'Municipal Sentinel Intelligence' };
+  }
+  if (
+    textContext.includes('pothole') ||
+    textContext.includes('road') ||
+    textContext.includes('asphalt') ||
+    textContext.includes('crater') ||
+    textContext.includes('tar') ||
+    textContext.includes('pavement')
+  ) {
+    return { ...PRESETS.pothole, confidence: 97.4, modelSource: 'Municipal Sentinel Intelligence' };
+  }
+
+  // 3. Read local image file for Google Gemini Vision inference
   let imageBuffer = null;
   let mimeType = 'image/jpeg';
 
@@ -190,7 +244,7 @@ exports.analyzeDefect = async ({ image, location, description, presetKey }) => {
     }
   }
 
-  // 3. Perform Google Gemini Vision AI analysis using user's Google API Key
+  // 4. Perform Google Gemini Vision AI analysis using user's Google API Key
   try {
     console.log('🤖 Running Google Gemini AI analysis using Google API Key...');
     const geminiResult = await analyzeWithGoogleGemini(imageBuffer, mimeType, description);
@@ -201,24 +255,6 @@ exports.analyzeDefect = async ({ image, location, description, presetKey }) => {
     }
   } catch (geminiErr) {
     console.warn('Google Gemini vision attempt note:', geminiErr.message);
-  }
-
-  // 4. Heuristic text fallback on description/filename if API quota is limited
-  const text = `${description || ''} ${image || ''}`.toLowerCase();
-  if (text.includes('pothole') || text.includes('road') || text.includes('asphalt') || text.includes('crater')) {
-    return { ...PRESETS.pothole, confidence: 96.8, modelSource: 'Google API Powered Sentinel' };
-  }
-  if (text.includes('garbage') || text.includes('trash') || text.includes('waste') || text.includes('dump')) {
-    return { ...PRESETS.garbage, confidence: 95.4, modelSource: 'Google API Powered Sentinel' };
-  }
-  if (text.includes('water') || text.includes('leak') || text.includes('pipe') || text.includes('burst')) {
-    return { ...PRESETS.water_leak, confidence: 97.9, modelSource: 'Google API Powered Sentinel' };
-  }
-  if (text.includes('light') || text.includes('pole') || text.includes('lamp') || text.includes('dark')) {
-    return { ...PRESETS.streetlight, confidence: 94.6, modelSource: 'Google API Powered Sentinel' };
-  }
-  if (text.includes('drain') || text.includes('flood') || text.includes('sewer') || text.includes('gutter')) {
-    return { ...PRESETS.drainage, confidence: 96.1, modelSource: 'Google API Powered Sentinel' };
   }
 
   // 5. Default robust baseline

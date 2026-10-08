@@ -221,11 +221,87 @@ exports.createIssue = async (req, res) => {
       },
     ];
 
+    // Intelligent category & municipal department routing
+    let finalCategory = category || 'pothole';
+    const textContext = `${title || ''} ${description || ''} ${categoryName || ''} ${category || ''}`.toLowerCase();
+
+    if (
+      textContext.includes('water') ||
+      textContext.includes('leak') ||
+      textContext.includes('pipe') ||
+      textContext.includes('valve') ||
+      textContext.includes('burst') ||
+      textContext.includes('plumb') ||
+      (textContext.includes('repair') && (textContext.includes('water') || textContext.includes('pipe')))
+    ) {
+      finalCategory = 'water_leak';
+    } else if (
+      textContext.includes('garbage') ||
+      textContext.includes('waste') ||
+      textContext.includes('trash') ||
+      textContext.includes('dump')
+    ) {
+      finalCategory = 'garbage';
+    } else if (
+      textContext.includes('light') ||
+      textContext.includes('lamp') ||
+      textContext.includes('pole') ||
+      textContext.includes('luminaire')
+    ) {
+      finalCategory = 'streetlight';
+    } else if (
+      textContext.includes('drain') ||
+      textContext.includes('flood') ||
+      textContext.includes('gutter') ||
+      textContext.includes('sewer')
+    ) {
+      finalCategory = 'drainage';
+    }
+
+    const DEPT_MAP = {
+      water_leak: 'Water Supply & Sewerage Board (BWSSB)',
+      garbage: 'Solid Waste Management (SWM)',
+      streetlight: 'Electricity Supply Company (BESCOM)',
+      drainage: 'Stormwater Drain & Sewerage Department',
+      pothole: 'Roads & Infrastructure Department',
+    };
+
+    const CATEGORY_NAMES = {
+      water_leak: 'Water Main Burst & Pipeline Leak',
+      garbage: 'Solid Waste Dump',
+      streetlight: 'Damaged Streetlight',
+      drainage: 'Clogged Storm Drain',
+      pothole: 'Pothole',
+    };
+
+    const DEFAULT_TITLES = {
+      water_leak: 'Pressurized Water Pipeline Rupture & Leak',
+      garbage: 'Overflowing Municipal Waste Dump',
+      streetlight: 'Defective Public Streetlight Fixture',
+      drainage: 'Blocked Monsoon Stormwater Drain',
+      pothole: 'Severe Asphalt Pothole Cavity',
+    };
+
+    let finalDepartment = department;
+    if (!finalDepartment || (finalDepartment === 'Roads & Infrastructure Department' && finalCategory !== 'pothole')) {
+      finalDepartment = DEPT_MAP[finalCategory] || 'Roads & Infrastructure Department';
+    }
+
+    let finalCategoryName = categoryName || CATEGORY_NAMES[finalCategory] || 'Civic Defect';
+    if (finalCategory === 'water_leak' && (!categoryName || categoryName === 'Pothole')) {
+      finalCategoryName = CATEGORY_NAMES.water_leak;
+    }
+
+    let finalTitle = title;
+    if (!finalTitle || (finalTitle.includes('Pothole') && finalCategory !== 'pothole')) {
+      finalTitle = DEFAULT_TITLES[finalCategory] || `${finalCategoryName} Defect`;
+    }
+
     const newIssue = new Issue({
       ticketId,
-      title: title || `${categoryName || 'Civic'} Defect`,
-      category: category || 'pothole',
-      categoryName: categoryName || 'Pothole',
+      title: finalTitle,
+      category: finalCategory,
+      categoryName: finalCategoryName,
       description: description || '',
       imageUrl,
       location: {
@@ -239,9 +315,9 @@ exports.createIssue = async (req, res) => {
         type: 'Point',
         coordinates: [lng, lat],
       },
-      priority: priority || 'Medium',
+      priority: priority || (finalCategory === 'water_leak' ? 'High' : 'Medium'),
       confidence: confidence || 96.5,
-      department: department || 'Roads & Infrastructure Department',
+      department: finalDepartment,
       status: 'reported',
       timeline: initialTimeline,
     });

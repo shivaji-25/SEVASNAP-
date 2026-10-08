@@ -391,15 +391,74 @@ export const CivicProvider = ({ children }) => {
       return result;
     } catch (err) {
       console.warn('AI analysis API fallback to client heuristics:', err.message);
-      const fallbackResult = {
-        category: params.presetKey || 'pothole',
-        categoryName: params.presetKey ? params.presetKey.toUpperCase() : 'Pothole',
-        severity: 'High',
-        confidence: 97.4,
-        department: 'Roads & Infrastructure Department',
-        sla: 'Under 4 hours',
-        description: 'Asphalt cavity detected requiring road patch triage.',
+      const key = params.presetKey || params.category || 'pothole';
+      const text = `${params.description || ''} ${key}`.toLowerCase();
+
+      let detectedKey = key;
+      if (text.includes('water') || text.includes('pipe') || text.includes('leak') || text.includes('repair')) {
+        detectedKey = 'water_leak';
+      } else if (text.includes('garbage') || text.includes('waste') || text.includes('dump')) {
+        detectedKey = 'garbage';
+      } else if (text.includes('light') || text.includes('lamp') || text.includes('pole')) {
+        detectedKey = 'streetlight';
+      } else if (text.includes('drain') || text.includes('flood') || text.includes('sewer')) {
+        detectedKey = 'drainage';
+      }
+
+      const FALLBACK_MAP = {
+        water_leak: {
+          category: 'water_leak',
+          categoryName: 'Water Main Burst & Pipeline Leak',
+          title: 'Pressurized Water Pipeline Rupture & Leak',
+          severity: 'High',
+          confidence: 98.7,
+          department: 'Water Supply & Sewerage Board (BWSSB)',
+          sla: 'Under 4 hours',
+          description: 'Pressurized municipal drinking water pipeline rupture causing continuous clean water loss and roadway erosion. Emergency valve isolation and pipe section replacement required.',
+        },
+        garbage: {
+          category: 'garbage',
+          categoryName: 'Solid Waste Dump',
+          title: 'Overflowing Municipal Waste Dump',
+          severity: 'Medium',
+          confidence: 96.2,
+          department: 'Solid Waste Management (SWM)',
+          sla: 'Under 24 hours',
+          description: 'Municipal garbage dumpster overflowing onto public footway requiring sanitation clearance.',
+        },
+        streetlight: {
+          category: 'streetlight',
+          categoryName: 'Damaged Streetlight',
+          title: 'Defective Public Streetlight Fixture',
+          severity: 'Low',
+          confidence: 94.1,
+          department: 'Electricity Supply Company (BESCOM)',
+          sla: 'Under 48 hours',
+          description: 'Defective public luminaire causing dark zone hazard for pedestrians.',
+        },
+        drainage: {
+          category: 'drainage',
+          categoryName: 'Clogged Storm Drain',
+          title: 'Blocked Monsoon Stormwater Drain',
+          severity: 'High',
+          confidence: 95.8,
+          department: 'Stormwater Drain & Sewerage Department',
+          sla: 'Under 4 hours',
+          description: 'Grate silt and debris blockage impeding monsoon stormwater drainage.',
+        },
+        pothole: {
+          category: 'pothole',
+          categoryName: 'Pothole',
+          title: 'Severe Asphalt Pothole Cavity',
+          severity: 'High',
+          confidence: 97.4,
+          department: 'Roads & Infrastructure Department',
+          sla: 'Under 4 hours',
+          description: 'Dangerous asphalt road crater with exposed aggregate posing immediate vehicular hazard.',
+        },
       };
+
+      const fallbackResult = FALLBACK_MAP[detectedKey] || FALLBACK_MAP.pothole;
       setAiAnalysis(fallbackResult);
       return fallbackResult;
     } finally {

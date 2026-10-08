@@ -20,64 +20,69 @@ import {
 
 const SRS_DEMO_PRESETS = [
   {
+    key: 'water_leak',
+    label: 'Water Repair / Leak',
+    icon: '💧',
+    title: 'Pressurized Water Pipeline Rupture & Leak',
+    image: 'https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80',
+    categoryName: 'Water Main Burst & Pipeline Leak',
+    severity: 'High',
+    confidence: 98.7,
+    department: 'Bangalore Water Supply & Sewerage Board (BWSSB)',
+    sla: 'Under 4 hours',
+    description: 'Pressurized municipal drinking water pipeline rupture causing continuous clean water loss, roadway erosion, and distribution pressure failure. Emergency valve isolation and pipe section replacement required.',
+  },
+  {
     key: 'pothole',
     label: 'Pothole',
     icon: '🕳️',
-    title: 'Asphalt Road Crater',
+    title: 'Severe Asphalt Road Crater',
     image: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80',
     categoryName: 'Pothole',
     severity: 'High',
     confidence: 97.4,
     department: 'Roads & Infrastructure Department',
-    description: 'Dangerous road crater with exposed aggregate causing vehicular axle shock.',
+    sla: 'Under 4 hours',
+    description: 'Dangerous road crater with exposed aggregate causing vehicular axle shock and commuter risk.',
   },
   {
     key: 'garbage',
     label: 'Garbage Dump',
     icon: '🗑️',
-    title: 'Overflowing Waste Dump',
+    title: 'Overflowing Municipal Waste Dump',
     image: 'https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=800&q=80',
     categoryName: 'Solid Waste Dump',
     severity: 'Medium',
     confidence: 96.2,
     department: 'Solid Waste Management (SWM)',
-    description: 'Municipal garbage dumpster overflowing onto public footway.',
-  },
-  {
-    key: 'water_leak',
-    label: 'Water Leak',
-    icon: '💧',
-    title: 'Pressurized Pipe Rupture',
-    image: 'https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80',
-    categoryName: 'Water Main Burst',
-    severity: 'High',
-    confidence: 98.7,
-    department: 'Water Supply & Sewerage Board',
-    description: 'Pressurized drinking water pipeline burst eroding surface tarmac.',
+    sla: 'Under 24 hours',
+    description: 'Municipal garbage dumpster overflowing onto public footway requiring immediate sanitation clearance.',
   },
   {
     key: 'streetlight',
     label: 'Streetlight',
     icon: '💡',
-    title: 'Defective Streetlight Pole',
+    title: 'Defective Public Streetlight Pole',
     image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80',
     categoryName: 'Damaged Streetlight',
     severity: 'Low',
     confidence: 94.1,
-    department: 'Electricity Supply Company',
-    description: 'Overhead luminaire failure creating dark pedestrian vulnerability.',
+    department: 'Electricity Supply Company (BESCOM)',
+    sla: 'Under 48 hours',
+    description: 'Overhead luminaire failure creating dark pedestrian vulnerability and visibility hazards.',
   },
   {
     key: 'drainage',
     label: 'Clogged Drain',
     icon: '🌊',
-    title: 'Clogged Stormwater Drain',
+    title: 'Clogged Stormwater Drain & Sewer',
     image: 'https://images.unsplash.com/photo-1574482620826-40685ca5ebd2?auto=format&fit=crop&w=800&q=80',
     categoryName: 'Clogged Storm Drain',
     severity: 'High',
     confidence: 95.8,
-    department: 'Stormwater Drain Department',
-    description: 'Debris blockage preventing active monsoon surface drainage.',
+    department: 'Stormwater Drain & Sewerage Department',
+    sla: 'Under 4 hours',
+    description: 'Debris and silt blockage preventing active monsoon surface drainage and causing roadway waterlogging.',
   },
 ];
 
@@ -214,24 +219,31 @@ export const Report = () => {
         image: finalImageUrl,
         location: userLocation,
         presetKey: activePreset?.key || undefined,
-        description: activePreset?.description || undefined,
+        category: activePreset?.key || undefined,
+        title: activePreset?.title || undefined,
+        description: customNotes.trim() || activePreset?.description || undefined,
       });
 
+      const matchedPreset =
+        SRS_DEMO_PRESETS.find((p) => p.key === aiResponse?.category) ||
+        activePreset ||
+        SRS_DEMO_PRESETS[0];
+
       setAiAnalysis({
-        category: aiResponse.category || activePreset?.key || 'pothole',
-        categoryName: aiResponse.categoryName || activePreset?.categoryName || 'Civic Defect',
-        severity: aiResponse.severity || activePreset?.severity || 'High',
-        confidence: aiResponse.confidence || activePreset?.confidence || 97.4,
-        department: aiResponse.department || activePreset?.department || 'Municipal Administration',
-        sla: aiResponse.sla || activePreset?.sla || 'Under 4 hours',
-        title: activePreset?.title || `Reported ${aiResponse.categoryName || 'Defect'}`,
-        description: activePreset?.description || 'Detected civic hazard requiring municipal maintenance.',
+        category: aiResponse?.category || matchedPreset.key,
+        categoryName: aiResponse?.categoryName || matchedPreset.categoryName,
+        severity: aiResponse?.severity || matchedPreset.severity,
+        confidence: aiResponse?.confidence || matchedPreset.confidence,
+        department: aiResponse?.department || matchedPreset.department,
+        sla: aiResponse?.sla || matchedPreset.sla || 'Under 4 hours',
+        title: aiResponse?.title || matchedPreset.title,
+        description: aiResponse?.description || matchedPreset.description,
       });
 
       setStage('verified');
     } catch (err) {
       console.error('AI Analysis failed:', err);
-      // Fallback to active preset or default pothole
+      // Fallback to active preset or default
       const fallback = activePreset || SRS_DEMO_PRESETS[0];
       setAiAnalysis({
         category: fallback.key,
@@ -239,7 +251,7 @@ export const Report = () => {
         severity: fallback.severity,
         confidence: fallback.confidence,
         department: fallback.department,
-        sla: 'Under 4 hours',
+        sla: fallback.sla || 'Under 4 hours',
         title: fallback.title,
         description: fallback.description,
       });
@@ -247,9 +259,73 @@ export const Report = () => {
     }
   };
 
-  // Preset selected directly
+  // Preset selected directly from quick samples
   const handlePresetSelected = (preset) => {
     setActivePreset(preset);
+    setPhotoData({ previewUrl: preset.image, file: null });
+    setUploadedImageUrl(preset.image);
+  };
+
+  // Switch category manually on verification screen
+  const handleSwitchCategory = (catKey) => {
+    const preset = SRS_DEMO_PRESETS.find((p) => p.key === catKey);
+    if (!preset) return;
+    setActivePreset(preset);
+    setAiAnalysis((prev) => ({
+      ...prev,
+      category: preset.key,
+      categoryName: preset.categoryName,
+      title: preset.title,
+      severity: preset.severity,
+      confidence: preset.confidence,
+      department: preset.department,
+      sla: preset.sla,
+      description: preset.description,
+    }));
+  };
+
+  // Detect and synchronize category when citizen types custom notes
+  const handleNotesChange = (text) => {
+    setCustomNotes(text);
+    const lower = text.toLowerCase();
+    if (
+      lower.includes('water') ||
+      lower.includes('pipe') ||
+      lower.includes('leak') ||
+      lower.includes('valve') ||
+      lower.includes('burst') ||
+      (lower.includes('repair') && !lower.includes('road'))
+    ) {
+      if (aiAnalysis?.category !== 'water_leak') {
+        handleSwitchCategory('water_leak');
+      }
+    } else if (
+      lower.includes('garbage') ||
+      lower.includes('waste') ||
+      lower.includes('trash') ||
+      lower.includes('dump')
+    ) {
+      if (aiAnalysis?.category !== 'garbage') {
+        handleSwitchCategory('garbage');
+      }
+    } else if (
+      lower.includes('light') ||
+      lower.includes('lamp') ||
+      lower.includes('pole')
+    ) {
+      if (aiAnalysis?.category !== 'streetlight') {
+        handleSwitchCategory('streetlight');
+      }
+    } else if (
+      lower.includes('drain') ||
+      lower.includes('gutter') ||
+      lower.includes('flood') ||
+      lower.includes('sewer')
+    ) {
+      if (aiAnalysis?.category !== 'drainage') {
+        handleSwitchCategory('drainage');
+      }
+    }
   };
 
   // Retake photo: resets back to Camera step
@@ -324,6 +400,8 @@ export const Report = () => {
         <CameraCapture
           userLocation={userLocation}
           onConfirmPhoto={handlePhotoConfirmed}
+          presets={SRS_DEMO_PRESETS}
+          onSelectPreset={handlePresetSelected}
         />
       )}
 
@@ -357,22 +435,55 @@ export const Report = () => {
           {/* Confirmed Photo Thumbnail + Category Badge */}
           <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-950 border border-slate-800 shadow-md">
             <img
-              src={photoData?.previewUrl}
+              src={photoData?.previewUrl || activePreset?.image}
               alt="Confirmed Defect"
               className="w-full h-full object-cover"
             />
-            <div className="absolute top-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white border border-slate-700 flex items-center gap-1.5">
+            <div className="absolute top-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white border border-slate-700 flex items-center gap-1.5 shadow-lg">
               <span>{SRS_DEMO_PRESETS.find((p) => p.key === aiAnalysis.category)?.icon || '📍'}</span>
               <span>{aiAnalysis.categoryName}</span>
             </div>
 
             <button
               onClick={handleRetakePhoto}
-              className="absolute top-2.5 right-2.5 bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition-all"
+              className="absolute top-2.5 right-2.5 bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-2.5 py-1 rounded-full text-[10px] font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition-all shadow-lg cursor-pointer"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Retake</span>
             </button>
+          </div>
+
+          {/* Quick Category Override Bar */}
+          <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-emerald-600" />
+                <span>Verify Defect Category</span>
+              </span>
+              <span className="text-[9px] text-emerald-600 font-bold">Tap to adjust</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {SRS_DEMO_PRESETS.map((p) => {
+                const isSelected = aiAnalysis.category === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => handleSwitchCategory(p.key)}
+                    className={`flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-slate-900 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span className="text-base">{p.icon}</span>
+                    <span className="text-[9px] font-bold mt-0.5 truncate w-full text-center">
+                      {p.label.split('/')[0].trim()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* AI Diagnostic Results Grid */}
@@ -384,6 +495,16 @@ export const Report = () => {
               </div>
               <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 {aiAnalysis.confidence}% Confidence
+              </span>
+            </div>
+
+            {/* Defect Title */}
+            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                Defect Title
+              </span>
+              <span className="font-black text-slate-900 text-xs mt-0.5 block">
+                {aiAnalysis.title}
               </span>
             </div>
 
@@ -417,13 +538,26 @@ export const Report = () => {
               </div>
             </div>
 
+            {/* AI Damage Assessment Report */}
+            <div className="bg-emerald-50/60 p-2.5 rounded-2xl border border-emerald-200/70 text-xs space-y-1">
+              <div className="flex items-center space-x-1.5 text-emerald-900 font-bold text-[10px] uppercase tracking-wider">
+                <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Damage Assessment Report</span>
+              </div>
+              <p className="text-[11px] text-slate-800 leading-relaxed font-medium">
+                {aiAnalysis.description}
+              </p>
+            </div>
+
             {/* Responsible Department & Location */}
             <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
               <div className="flex items-start space-x-1.5">
                 <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <span className="text-[10px] text-slate-400 block font-bold">Assigned Department</span>
-                  <span className="font-bold text-slate-900">{aiAnalysis.department}</span>
+                  <span className="font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 inline-block text-[11px] mt-0.5">
+                    {aiAnalysis.department}
+                  </span>
                 </div>
               </div>
 
@@ -457,8 +591,8 @@ export const Report = () => {
               </label>
               <textarea
                 value={customNotes}
-                onChange={(e) => setCustomNotes(e.target.value)}
-                placeholder="Add any landmark or specific instructions for the municipal squad..."
+                onChange={(e) => handleNotesChange(e.target.value)}
+                placeholder="e.g., water repair needed near main intersection..."
                 rows={2}
                 className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-900 resize-none"
               />
