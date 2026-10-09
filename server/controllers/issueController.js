@@ -46,6 +46,7 @@ exports.getIssues = async (req, res) => {
     if (priority) filter.priority = priority;
     if (req.query.deviceId) filter['reportedBy.deviceId'] = req.query.deviceId;
     if (req.query.reporterId) filter['reportedBy.id'] = req.query.reporterId;
+    if (req.query.reporterEmail) filter['reportedBy.email'] = req.query.reporterEmail.toLowerCase().trim();
 
     // Geospatial nearby filtering (MongoDB 2dsphere index)
     if (lat && lng) {
@@ -373,12 +374,12 @@ exports.createIssue = async (req, res) => {
       confidence: confidence || 96.5,
       department: finalDepartment,
       status: 'reported',
-      reportedBy: req.body.reportedBy || {
-        id: req.body.userId || null,
-        name: req.body.userName || 'Citizen Reporter',
-        email: req.body.userEmail || null,
-        phone: req.body.userPhone || null,
-        deviceId: req.body.deviceId || null,
+      reportedBy: {
+        id: req.body.reportedBy?.id || req.body.userId || null,
+        name: req.body.reportedBy?.name || req.body.userName || 'Citizen Reporter',
+        email: (req.body.reportedBy?.email || req.body.userEmail || '').toLowerCase().trim() || null,
+        phone: req.body.reportedBy?.phone || req.body.userPhone || null,
+        deviceId: req.body.reportedBy?.deviceId || req.body.deviceId || null,
       },
       timeline: initialTimeline,
     });

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../services/api';
 
 const CivicContext = createContext();
@@ -188,24 +188,35 @@ export const CivicProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Filter issues belonging exclusively to this citizen reporter
-  const myIssues = issues.filter((iss) => {
-    if (myReportedTicketIds.includes(iss.ticketId)) return true;
-    if (iss.reportedBy) {
-      if (
-        user &&
-        (iss.reportedBy.id === user._id ||
-          iss.reportedBy.id === user.id ||
-          (user.email && iss.reportedBy.email === user.email))
-      ) {
-        return true;
-      }
-      if (iss.reportedBy.deviceId && iss.reportedBy.deviceId === deviceId) {
-        return true;
-      }
+  // Filter issues belonging strictly and exclusively to the active logged-in citizen account
+  const myIssues = useMemo(() => {
+    // 1. If an authenticated user is logged in, strictly match their own account (ID or Email)
+    if (user && (user.email || user._id || user.id)) {
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const userId = String(user._id || user.id || '');
+
+      return issues.filter((iss) => {
+        if (!iss.reportedBy) return false;
+
+        const repEmail = (iss.reportedBy.email || '').toLowerCase().trim();
+        const repId = String(iss.reportedBy.id || iss.reportedBy._id || '');
+
+        if (userId && repId && repId === userId) return true;
+        if (userEmail && repEmail && repEmail === userEmail) return true;
+
+        return false;
+      });
     }
-    return false;
-  });
+
+    // 2. Unauthenticated Guest mode: only complaints created in this guest session without an account
+    return issues.filter((iss) => {
+      // Never show complaints belonging to registered accounts to anonymous guests
+      if (iss.reportedBy?.email || iss.reportedBy?.id) return false;
+      if (myReportedTicketIds.includes(iss.ticketId)) return true;
+      if (iss.reportedBy?.deviceId && iss.reportedBy.deviceId === deviceId) return true;
+      return false;
+    });
+  }, [issues, user, deviceId, myReportedTicketIds]);
 
   // Track upvoted tickets in local state for rapid UI toggling
   const [upvotedTickets, setUpvotedTickets] = useState(() => {
@@ -776,8 +787,12 @@ export const CivicProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    setMyReportedTicketIds([]);
     localStorage.removeItem('sevasnap_user');
     localStorage.removeItem('sevasnap_token');
+    localStorage.removeItem('sevasnap_my_ticket_ids');
+    const freshDeviceId = `device-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem('sevasnap_device_id', freshDeviceId);
   };
 
   return (
