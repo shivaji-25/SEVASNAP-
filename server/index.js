@@ -12,10 +12,15 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const path = require('path');
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '15mb' })); // Support base64 image payloads
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Serve uploaded image assets statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Base Route
 app.get('/', (req, res) => {
@@ -107,6 +112,8 @@ app.post('/api/ai-triage', (req, res) => {
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/issues', require('./routes/issueRoutes'));
 app.use('/api/authority', require('./routes/statsRoutes'));
 

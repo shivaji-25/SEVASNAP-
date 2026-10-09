@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCivic } from '../context/CivicContext';
 import { CameraCapture } from '../components/CameraCapture';
@@ -97,6 +97,7 @@ const LOCATION_PRESETS = [
 export const Report = () => {
   const navigate = useNavigate();
   const { userLocation, setUserLocation, detectLocation, forwardGeocode, submitIssue } = useCivic();
+  const latestRequestIdRef = useRef(0);
 
   // Workflow state: 'capture' | 'analyzing' | 'verified'
   const [stage, setStage] = useState('capture');
@@ -192,70 +193,72 @@ export const Report = () => {
 
   // 1. User confirms photo from CameraCapture component
   const handlePhotoConfirmed = async ({ previewUrl, file }) => {
+    const currentReqId = ++latestRequestIdRef.current;
+
+    // Immediately clear previous analysis and state
+    setAiAnalysis(null);
+    setErrorMessage('');
     setPhotoData({ previewUrl, file });
     setStage('analyzing');
-    setErrorMessage('');
+    if (file) {
+      setActivePreset(null); // Clear previous demo preset selection for real uploads
+    }
 
     try {
       let finalImageUrl = previewUrl;
 
-      // If a real file was captured/uploaded, upload to backend Multer storage
+      // Upload file to backend storage if captured or selected from device
       if (file) {
         try {
           const uploadRes = await uploadImage(file);
-          if (uploadRes.imageUrl) {
+          if (uploadRes?.imageUrl) {
             finalImageUrl = uploadRes.imageUrl;
             setUploadedImageUrl(uploadRes.imageUrl);
           }
         } catch (uploadErr) {
-          console.warn('Backend upload notice, using preview URL:', uploadErr.message);
+          console.warn('Backend upload note, proceeding with direct image bytes:', uploadErr.message);
         }
       } else {
         setUploadedImageUrl(previewUrl);
       }
 
-      // Send to Backend AI Vision Analysis
+      // Send the real newly selected image bytes to Backend AI Vision Analysis
       const aiResponse = await analyzeIssue({
         image: finalImageUrl,
-        location: userLocation,
-        presetKey: activePreset?.key || undefined,
-        category: activePreset?.key || undefined,
-        title: activePreset?.title || undefined,
-        description: customNotes.trim() || activePreset?.description || undefined,
+        file: file || undefined,
+        requestId: `REQ-${currentReqId}`,
       });
 
-      const matchedPreset =
-        SRS_DEMO_PRESETS.find((p) => p.key === aiResponse?.category) ||
-        activePreset ||
-        SRS_DEMO_PRESETS[0];
+      // Ignore stale responses if a newer image was selected while this request was running
+      if (currentReqId !== latestRequestIdRef.current) {
+        console.log(`[Frontend] Ignoring stale response for request #${currentReqId}`);
+        return;
+      }
+
+      if (!aiResponse) {
+        throw new Error('No analysis data received from server');
+      }
 
       setAiAnalysis({
-        category: aiResponse?.category || matchedPreset.key,
-        categoryName: aiResponse?.categoryName || matchedPreset.categoryName,
-        severity: aiResponse?.severity || matchedPreset.severity,
-        confidence: aiResponse?.confidence || matchedPreset.confidence,
-        department: aiResponse?.department || matchedPreset.department,
-        sla: aiResponse?.sla || matchedPreset.sla || 'Under 4 hours',
-        title: aiResponse?.title || matchedPreset.title,
-        description: aiResponse?.description || matchedPreset.description,
+        status: aiResponse.status || 'classified',
+        category: aiResponse.categoryKey || aiResponse.category || 'pothole',
+        categoryName: aiResponse.problem || aiResponse.categoryName || `${aiResponse.category} Defect`,
+        severity: aiResponse.severity || 'Medium',
+        confidence: aiResponse.confidence,
+        department: aiResponse.department,
+        sla: aiResponse.sla || 'Under 4 hours',
+        title: aiResponse.title || `${aiResponse.category}: ${aiResponse.problem}`,
+        description: aiResponse.evidence || aiResponse.description || '',
+        evidence: aiResponse.evidence || '',
+        modelSource: aiResponse.modelSource || 'AI Sentinel Vision',
       });
 
       setStage('verified');
     } catch (err) {
+      if (currentReqId !== latestRequestIdRef.current) return;
       console.error('AI Analysis failed:', err);
-      // Fallback to active preset or default
-      const fallback = activePreset || SRS_DEMO_PRESETS[0];
-      setAiAnalysis({
-        category: fallback.key,
-        categoryName: fallback.categoryName,
-        severity: fallback.severity,
-        confidence: fallback.confidence,
-        department: fallback.department,
-        sla: fallback.sla || 'Under 4 hours',
-        title: fallback.title,
-        description: fallback.description,
-      });
-      setStage('verified');
+      setErrorMessage(err.message || 'AI vision analysis failed. Please retry or choose another photo.');
+      setStage('capture');
     }
   };
 
@@ -406,6 +409,25 @@ export const Report = () => {
           </span>
         </div>
       </div>
+
+      {/* Error & Retry Banner */}
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center justify-between text-xs text-red-800">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span className="leading-tight">{errorMessage}</span>
+          </div>
+          {photoData && (
+            <button
+              type="button"
+              onClick={() => handlePhotoConfirmed(photoData)}
+              className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] active:scale-95 transition-all shadow-xs shrink-0 cursor-pointer ml-2"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       {/* STAGE 1: CAMERA CAPTURE / GALLERY / PREVIEWS */}
       {stage === 'capture' && (

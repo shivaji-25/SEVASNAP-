@@ -174,10 +174,23 @@ export const uploadImage = async (file) => {
 };
 
 // AI Sentinel Triage Analysis
-export const analyzeIssue = async ({ image, location, description, presetKey }) => {
+export const analyzeIssue = async ({ image, file, requestId }) => {
+  if (file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const headers = requestId ? { 'x-request-id': requestId } : {};
+    const response = await request('/ai/analyze', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    return response.data;
+  }
+
   const response = await request('/ai/analyze', {
     method: 'POST',
-    body: JSON.stringify({ image, location, description, presetKey }),
+    headers: requestId ? { 'x-request-id': requestId } : {},
+    body: JSON.stringify({ image }),
   });
   return response.data;
 };
